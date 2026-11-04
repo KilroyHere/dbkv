@@ -11,10 +11,10 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Model | Qwen3-8B in `$SCRATCH/huggingface` (16.4 GB, snapshot `b968826d`) |
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Works (deploy key) |
-| G1 oracle simulation | Starting in `sim/` (Redshift-like pauses, `sim/pauses.py`) |
+| G1 oracle simulation | Simulator `sim/kvsim.py` + grid `sim/g1_grid.py` written. Prediction 2a pre-registered. **Grid job 60824732 queued** (CPU, est. 0.02 node-h); output → `results/g1_gap.csv` |
 | TPC-H data | SF1 + SF10 job 60823995 submitted Nov 4 (`slurm/tpch_gen.sbatch`, CPU shared, 16 cores, est. 0.03 node-h) → `$SCRATCH/dbkv/tpch/tpch_sf{1,10}.duckdb` |
 | G2 `EXPLAIN` calibration | Not started; waiting on TPC-H |
-| G3 memory limit | Prediction 1a pre-registered (~32 sessions at 4k, ~16 at 8k, ~6.5 at 20k). Kill line amended to be judged at 8k and 20k (§3). Replayer `harness/replay.py` written; **smoke job 60824576 queued** (0.125 node-h). Main sweep ~1.35 node-h, not submitted |
+| G3 memory limit | Prediction 1a pre-registered (~32 sessions at 4k, ~16 at 8k, ~6.5 at 20k). Kill line amended to be judged at 8k and 20k (§3). Replayer `harness/replay.py` written. The first smoke job, 60824576, failed at engine start (FlashInfer lock on `$HOME`; fixed in `env.sh`); **retry 60824741 queued** (0.125 node-h). Main sweep ~1.35 node-h, not submitted |
 | Continuum code | Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
 **Next:** generate TPC-H (CPU job), then G2 and G1 in parallel, then G3 on a GPU by Saturday.
@@ -44,6 +44,12 @@ Write these on the midpoint slide before seeing results, then score them afterwa
     - **Check at 20k context:** 6.5 sessions, which is consistent with prediction 1.
     - **How it is scored:** against vLLM's startup line "GPU KV cache size: N tokens", and against the session count where preemption or prefix-cache misses on resumed turns first appear. *Observed: —*
 2. Below the limit, all policies land within 5% of each other.
+2a. **G1 prediction** *(written Nov 4, before the G1 grid ran).*
+    - **Values:** at 1.5–3× the memory limit with Redshift-like pauses, at 8k and 20k context, the oracle beats the best per-tool policy by **≥15% at p95** task time. "Best per-tool policy" means the best of stock LRU, always-keep, released Continuum (2 s), Continuum Eq. 1, and fixed timeouts from 0.1 to 30 s. Below the limit, and with millisecond-only pauses, the gap is **<5%**. An `EXPLAIN` stand-in with log-space noise σ = 1 recovers **about half** of the gap.
+    - **Where the numbers come from:** they are carried over from predictions 2–4, since the oracle must beat the per-call classes, which prediction 4 puts at 15–20%.
+    - **Disclosure:** before this was written, a 1-seed, 5-minute debug grid (`--quick`) was run to check the code. Its p95s were too noisy to read, with gaps between −44% and +5% at 1 seed.
+    - **Caveat:** the simulator's GPU cost parameters are back-of-envelope until G3 measures them, so G1 is re-run after G3.
+    - *Observed: —*
 3. Above the limit, with millisecond-only queries, always-keep plus program-level scheduling comes within 10% of Continuum.
 4. With Redshift-like query times (p50 0.1 s, p90 1.8 s, p99 26 s), per-call classes beat the per-tool timeout by 15–20% at p95.
 5. `EXPLAIN` puts queries in the correct one of three classes at least 70% of the time.
@@ -76,7 +82,7 @@ Write these on the midpoint slide before seeing results, then score them afterwa
   - From `/metrics`: KV usage, prefix-cache hits, preemptions.
   - Re-prefilled tokens.
 - **Budget** (revised Nov 4, after adding the 20k row):
-  - Smoke test (job 60824576, 1 GPU `shared`, 30 min): 0.125 node-h. It covers 4k:8, 8k:16, 20k:6 and 20k:10, records vLLM's real KV token count, and exercises the 20k path and an above-limit point.
+  - Smoke test (job 60824741, a retry of 60824576; 1 GPU `shared`, 30 min): 0.125 node-h. It covers 4k:8, 8k:16, 20k:6 and 20k:10, records vLLM's real KV token count, and exercises the 20k path and an above-limit point.
   - Main sweep: 48 runs × ~6.5 min (60 s warm-up, 300 s measured, about 30 s drain) ≈ 5.2 h, plus about 10 min for server start ≈ 5.4 h ≈ **1.35 node-h**, with `--time 7:00` (cap 1.75). It may be split into a 4k+8k job (~0.9) and a 20k job (~0.45).
   - **Total about 1.5 node-h (at most 1.9), compared with the ~6 budgeted.**
 - **Amendment, Nov 4, before any G3 data, because the 4k prediction sits on the line.** G3's kill line, "no limit below 32 sessions", is judged at **8k and 20k context**, not at 4k. That is because 4k's predicted limit (≈32, prediction 1a) falls right on the line, so the 4k result would trip it by construction. The 4k row is still measured and reported in full. The 20k row was added so the line can be judged at the project's premise context.

@@ -8,6 +8,13 @@ export DBKV_ENV=$SCRATCH/envs/dbkv-env                          # Python venv: C
 # (not /global/common/software/m4999: that quota is shared by the whole class and was full on 2026-11-04)
 export HF_HOME=$SCRATCH/huggingface                              # shared HF cache (already holds HW models)
 export DBKV_MODEL=Qwen/Qwen3-8B
+# JIT/compile caches on $SCRATCH: $HOME doesn't support flock from compute nodes (errno 524),
+# which killed FlashInfer's kernel build in job 60824576. Lustre scratch does.
+export FLASHINFER_WORKSPACE_BASE=$SCRATCH/cache            # -> $SCRATCH/cache/.cache/flashinfer
+export VLLM_CACHE_ROOT=$SCRATCH/cache/vllm                  # torch.compile artifacts
+export TRITON_CACHE_DIR=$SCRATCH/cache/triton
+export TORCHINDUCTOR_CACHE_DIR=$SCRATCH/cache/inductor
+mkdir -p "$SCRATCH/cache" 2>/dev/null || true
 export DBKV_PY_MODULE=python/3.11-24.1.0
 
 module load "$DBKV_PY_MODULE" >/dev/null 2>&1

@@ -100,3 +100,4 @@ A 1-GPU `shared` job costs ¼ node-hour per hour and gets 16 cores and 64 GB RAM
 | 2026-11-04 | `dbkv-claude` installed; session `dbkv` started on login33 | ok: trust prompt answered, Remote Control live as `dbkv-perlmutter` |
 | 2026-11-04 | Deploy key added on GitHub | ok: `git ls-remote origin` works over ssh |
 | 2026-11-04 | Added `dbkv-claude peek` and the job log `$SCRATCH/dbkv/logs/jobs.tsv` | ok |
+| 2026-11-04 | G3 smoke job 60824576 failed at engine start: FlashInfer's JIT lock under `~/.cache` got `flock` errno 524, because `$HOME` doesn't support locking from compute nodes | fixed in `setup/env.sh`: the FlashInfer, vLLM, Triton and Inductor caches now live under `$SCRATCH/cache`. Also measured: A100 `total_memory` = 42,404,806,656 B, and Qwen3-8B weights load as 15.27 GiB |

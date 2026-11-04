@@ -13,8 +13,9 @@ Model of vLLM's budget (V1 engine):  KV = util * total - weights - overhead
 import argparse, glob, json, os
 
 GiB = 2**30
-# torch.cuda.get_device_properties(0).total_memory on an A100-SXM4-40GB (Perlmutter): 40,339 MiB
-A100_40GB_BYTES = 42_298_834_944
+# torch.cuda.get_device_properties(0).total_memory on a Perlmutter A100-SXM4-40GB, measured in job 60824576.
+# (Prediction 1a was computed with an assumed 42,298,834,944 B; the 0.25% difference is ~+700 KV tokens.)
+A100_40GB_BYTES = 42_404_806_656
 DTYPE_BYTES = {"bfloat16": 2, "float16": 2, "float32": 4}
 
 
