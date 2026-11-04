@@ -103,9 +103,11 @@ Environment: use a separate virtual environment for the Continuum fork. Pin ever
 | Repo | `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` | Backed up. Remote: github.com/KilroyHere/dbkv |
 | Data, DuckDB files, traces, model weights | `$SCRATCH/dbkv/` (`/pscratch/sd/a/ap2568/dbkv`) | Fast. Purged after 8 weeks without access, which is fine through Dec 7. Copy summaries into `results/` |
 | Python environments | `$SCRATCH/envs/dbkv-env` (built), and later `$SCRATCH/envs/continuum-env` | `/global/common/software/m4999` is shared by the whole class and was full. Imports from CFS are slow |
-| Editing, git, Claude Code | Login node, in the existing `team19-rc` tmux session | Light work only. No simulations, query runs or data generation |
+| Editing, git, Claude Code | Login node, in tmux session `dbkv` (Remote Control `dbkv-perlmutter`, kept alive by `setup/dbkv-claude`) | Light work only. No simulations, query runs or data generation |
 | G1 simulator, G2 calibration, TPC-H generation | CPU compute nodes, `shared` QOS, 16–32 cores | Charged against the CPU allocation (see Section 6) |
-| G3, baselines, mechanism, sweeps | GPU nodes, 1-GPU `shared` / `shared_interactive` | DuckDB runs on the 16 cores and 64 GB that come with each GPU, at no extra charge |
+| G3, baselines, mechanism, sweeps | GPU nodes, 1-GPU `shared` / `shared_interactive` | DuckDB runs inside the GPU job, using the 16 cores and 64 GB that come with each GPU at no extra charge. It is **capped at `SET memory_limit='16GB'` and `SET threads=8`**, so it never squeezes vLLM's CPU offload space or its CPU-side work (tokenizer, scheduler, proxy). Every DuckDB connection opened in a GPU job sets both caps |
+
+**CPU nodes vs GPU jobs.** Standalone heavy work that needs no GPU, such as TPC-H generation, G2 calibration and the G1 simulator, runs as its own CPU-node job. A database that serves a GPU run stays inside that GPU job, with the caps above.
 
 **What Perlmutter adds to the plan.**
 - **Real long queries.** A CPU node has 128 cores and 512 GB RAM, enough to generate TPC-H SF100 once. Real queries then take tens of seconds, so injected Redshift-like delays become a cross-check, not the main source of long pauses.
