@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# dbkv-notify SUBJECT  [body on stdin]  -> email "[dbkv] SUBJECT" to Aryan.
+# For: a job ending or failing, a gate result, being blocked on Aryan's approval. Not routine progress.
+#   echo -e "job 123 COMPLETED\nnode-h 0.01" | dbkv-notify "TPC-H SF100 done"
+set -uo pipefail
+TO=aroo2001@gmail.com
+LOG=${SCRATCH:-$HOME}/dbkv/logs/notify.log
+[[ $# -ge 1 && -n "$1" ]] || { echo "usage: dbkv-notify SUBJECT  (body on stdin)" >&2; exit 2; }
+subj="[dbkv] $1"
+if [[ -t 0 ]]; then body=""; else body=$(cat); fi
+body="${body}
+
+-- sent $(date -Is) from $(hostname) by dbkv-notify"
+if printf '%s\n' "$body" | mail -s "$subj" "$TO"; then st=ok; else st=FAILED; fi
+mkdir -p "$(dirname "$LOG")"; echo -e "$(date -Is)\t$st\t$subj" >> "$LOG"
+[[ $st == ok ]] || { echo "dbkv-notify: mail failed" >&2; exit 1; }

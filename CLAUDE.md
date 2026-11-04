@@ -16,6 +16,11 @@ The project is **dbkv** (direction D3), Aryan Patel's CS 5470 project, done solo
 - **Git.** Commit and push after each finished step, so progress is visible on GitHub. The remote is github.com/KilroyHere/dbkv, reached through the `github-dbkv` deploy key.
 - **Job log.** When you submit a Slurm job, append one line to `$SCRATCH/dbkv/logs/jobs.tsv`: date, job id, purpose, partition, estimated node-hours. When it ends, fill in that same row's `actual_node_hours` and its end state; don't add a second row. `squeue` drops finished jobs, so a job missing from it is not proof that it finished: check `sacct -j <id>` (or `setup/job-nh <id>...`, which prints state, elapsed and node-hours) for the end state and elapsed time. `dbkv-claude peek` shows this file, and it is how the budget gets tracked.
 - **Visibility.** Aryan, and a helper Claude on his Mac, check on you with `dbkv-claude peek`. It shows git, the Status table, Slurm jobs, the job log and your last messages. Keep the Status table current.
+- **Email notifications.** Run `dbkv-notify "<subject>"` (in `setup/`, symlinked into `~/.local/bin`), with the body on stdin. It emails Aryan with the subject `[dbkv] <subject>`.
+  - Send one for exactly these events: a job ending or failing, a gate result (G1–G3), or being blocked on Aryan's approval. These are the same events as push notifications.
+  - Put the details in the body: job ID, end state, actual node-hours, and the key number or the question.
+  - Send at most one email per event, and none for routine progress.
+  - Sends are logged in `$SCRATCH/dbkv/logs/notify.log`.
 
 ## Environment
 
