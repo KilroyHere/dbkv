@@ -18,19 +18,64 @@ This file logs the state and any manual steps. If something is changed by hand, 
 | Model weights | `$SCRATCH/huggingface` (`HF_HOME`) | Shared HF cache from the HWs, which already holds Llama-3.1-8B and CodeLlama-34B |
 | Continuum env (vLLM 0.10.2 fork) | Not created yet | Separate env, see `engine/README.md` |
 
-## Day-to-day
+## How work happens: one main Claude, on Perlmutter
 
-```bash
-# from the Mac: renew the 24 h cert once a day (only you can, needs your password + OTP)
-sshproxy -u ap2568
-ssh perlmutter
-source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
-cd $DBKV_REPO && git pull
+```
+ You (Claude app: desktop or phone) ──Remote Control──► Claude Code "dbkv-perlmutter"
+                                                          in tmux "dbkv" on a login node, cwd = repo
+                                                                │ sbatch / squeue
+                                                                ▼
+                                                    Slurm jobs (CPU / GPU) ──► $SCRATCH/dbkv/runs
+ Claude on the Mac (side helper) ──ssh──► check, fix setup        GitHub: KilroyHere/dbkv
 ```
 
-- **Code flow:** edit on the Mac, push to GitHub, then `git pull` on Perlmutter. Pushing from Perlmutter needs GitHub credentials there, which aren't set up.
-- **Heavy work goes through Slurm jobs, never the login node.** Each job script sources `setup/env.sh`.
-- **tmux sessions are per login node.** The setup session ran on `login14`, while the Claude Code remote session was started on `login33`. Reattach with `ssh -t perlmutter ssh -t <node> tmux attach -t <name>`.
+- **Talk to `dbkv-perlmutter` in the Claude app** for all project work. It keeps running when the laptop is closed.
+- **The Mac Claude is a helper only:** Google Docs, the background research report, setup fixes over ssh. Don't have both edit the repo at the same time. If the Mac side changes something, it pushes to GitHub and the Perlmutter side pulls.
+- **Long tasks are Slurm jobs,** not processes on the login node. They survive Claude restarts and login-node reboots. Claude watches them with `squeue` and reads outputs from `$SCRATCH/dbkv/runs`.
+- **Shared memory between sessions is the repo,** not the chat. Conversation history doesn't move between machines, and the Perlmutter conversation itself can be lost on a restart (see below). Everything that must survive goes in `docs/PLAN.md` (Status section) and this file. `CLAUDE.md` tells every new session to read them first.
+
+## Keeping the session alive: `setup/dbkv-claude`
+
+`~/.local/bin/dbkv-claude` is a symlink to `setup/dbkv-claude`.
+
+| Command | What it does |
+|---|---|
+| `dbkv-claude start` | Starts tmux session `dbkv` on the current login node, inside the repo, and records the node in `~/.dbkv-claude-node`. Does nothing if it is already alive on its recorded node |
+| `dbkv-claude status` | Shows the recorded node, whether it is alive, and the last restart-log lines |
+| `dbkv-claude attach` | Opens the tmux session, hopping to the recorded node if needed. From the Mac: `ssh -t perlmutter dbkv-claude attach` |
+| `dbkv-claude stop` | Stops the restart loop and the session |
+
+**What survives what:**
+
+| Event | Result |
+|---|---|
+| Laptop closed, network drops | Nothing changes |
+| Claude crashes or exits | The loop restarts it after 30 s with `remote-control --continue`, so the same conversation reattaches if it was active in the last ~4 hours |
+| Gap of more than ~4 hours | It starts a fresh conversation in the repo, which reads `CLAUDE.md` and the Status section. The project state carries over; the chat does not |
+| Login node rebooted (Perlmutter maintenance) | tmux dies with the node. Run `ssh perlmutter dbkv-claude start` from the Mac. That needs the day's `sshproxy` certificate |
+| Slurm jobs during any of the above | Unaffected |
+
+Restarts are logged to `$SCRATCH/dbkv/logs/claude-rc.log`.
+
+## Daily routine
+
+```bash
+sshproxy -u ap2568                      # on the Mac, once a day (password + OTP; only you can)
+ssh perlmutter dbkv-claude status       # optional health check
+```
+
+The Perlmutter session doesn't need the certificate once it is running. You need it only to ssh in from the Mac.
+
+## Pushing to GitHub from Perlmutter
+
+A key was generated at `~/.ssh/dbkv_deploy` (public key comment `perlmutter-ap2568-dbkv-deploy`). Until it is added to the repo as a **write** deploy key, the Perlmutter Claude can commit but not push. To add it from the Mac:
+
+```bash
+ssh perlmutter cat ~/.ssh/dbkv_deploy.pub > /tmp/dbkv_deploy.pub
+gh repo deploy-key add /tmp/dbkv_deploy.pub --repo KilroyHere/dbkv --allow-write --title perlmutter-ap2568
+```
+
+On Perlmutter, `~/.ssh/config` has a `Host github-dbkv` entry using that key, and the repo's `origin` is `git@github-dbkv:KilroyHere/dbkv.git`.
 
 ## Budget (from `iris`)
 
@@ -47,4 +92,8 @@ A 1-GPU `shared` job costs ¼ node-hour per hour and gets 16 cores and 64 GB RAM
 |---|---|---|
 | 2026-11-04 | Repo cloned to CFS from GitHub | ok (`cacea18`) |
 | 2026-11-04 | `perlmutter_setup.sh --model` on login14 | failed: `/global/common/software/m4999` over quota (shared by the class) |
-| 2026-11-04 | Env moved to `$SCRATCH/envs/dbkv-env`; setup re-run in tmux `dbkv-setup` on login33 | running |
+| 2026-11-04 | Env moved to `$SCRATCH/envs/dbkv-env`; setup re-run on login33 | ok: Python 3.11.7, vLLM 0.33.0, PyTorch 2.14.0+cu130, DuckDB 2.0.0. GPU driver 580.178 (supports CUDA 13) |
+| 2026-11-04 | Qwen3-8B download (`--model` step) | in progress |
+| 2026-11-04 | Deploy key `~/.ssh/dbkv_deploy` generated; `github-dbkv` ssh alias; origin switched to ssh | key not yet added on GitHub |
+| 2026-11-04 | Old setup removed: `team19-rc` launcher, `~/.team19-rc-node`, tmux `claude` (old RC session in the deleted `team19/code`), the failed `/global/common/software/m4999/ap2568` | done |
+| 2026-11-04 | `dbkv-claude` installed; session `dbkv-perlmutter` started | see Status in PLAN.md |

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# dbkv-claude: keep ONE Claude Code + Remote Control session alive on a Perlmutter login node.
+#
+#   dbkv-claude start    start it on this login node (no-op if already alive on its recorded node)
+#   dbkv-claude status   which node, is tmux/claude alive, last log lines
+#   dbkv-claude attach   open the tmux session (hops to the recorded node if needed)
+#   dbkv-claude stop     stop the loop and the session
+#
+# From the Mac:  ssh -t perlmutter dbkv-claude attach
+# Installed as a symlink: ~/.local/bin/dbkv-claude -> $DBKV_REPO/setup/dbkv-claude
+set -uo pipefail
+
+REPO=/global/cfs/cdirs/m4999/team19/ap2568/dbkv
+SESSION=dbkv
+RC_NAME=dbkv-perlmutter
+NODE_FILE=$HOME/.dbkv-claude-node
+STOP_FILE=$HOME/.dbkv-claude-stop
+LOG=$SCRATCH/dbkv/logs/claude-rc.log
+CLAUDE=$HOME/.local/bin/claude
+here=$(hostname)
+node=$(cat "$NODE_FILE" 2>/dev/null || true)
+
+on_node() {  # run a command on the recorded node (locally if we're already there)
+  if [[ -z "$node" || "$node" == "$here" ]]; then bash -c "$1"; else ssh -o BatchMode=yes "$node" "$1" 2>/dev/null; fi
+}
+alive() { [[ -n "$node" ]] && on_node "tmux has-session -t $SESSION 2>/dev/null"; }
+
+loop() {  # runs inside tmux; restarts claude if it exits
+  rm -f "$STOP_FILE"; mkdir -p "$(dirname "$LOG")"; cd "$REPO" || exit 1
+  while [[ ! -f "$STOP_FILE" ]]; do
+    echo "$(date -Is) $(hostname) starting (try --continue)" >> "$LOG"
+    # --continue reattaches to the session recorded for this dir (only within ~4 h); otherwise start fresh
+    "$CLAUDE" remote-control --continue --name "$RC_NAME" \
+      || "$CLAUDE" remote-control --name "$RC_NAME"
+    echo "$(date -Is) claude exited with $?; restarting in 30 s" >> "$LOG"
+    sleep 30
+  done
+}
+
+case "${1:-status}" in
+  start)
+    if alive; then echo "already running on $node (tmux '$SESSION')"; exit 0; fi
+    tmux new-session -d -s "$SESSION" -c "$REPO" "bash $REPO/setup/dbkv-claude _loop"
+    echo "$here" > "$NODE_FILE"
+    echo "started on $here; open it in the Claude app as '$RC_NAME', or: dbkv-claude attach" ;;
+  _loop) loop ;;
+  status)
+    echo "recorded node: ${node:-none}   (you are on $here)"
+    if alive; then echo "tmux '$SESSION': alive"; on_node "pgrep -u $USER -af 'claude remote-control' | head -2"
+    else echo "tmux '$SESSION': NOT running -> dbkv-claude start"; fi
+    tail -3 "$LOG" 2>/dev/null ;;
+  attach)
+    alive || { echo "not running; run: dbkv-claude start"; exit 1; }
+    if [[ "$node" == "$here" ]]; then exec tmux attach -t "$SESSION"; else exec ssh -t "$node" tmux attach -t "$SESSION"; fi ;;
+  stop)
+    touch "$STOP_FILE"; on_node "tmux kill-session -t $SESSION 2>/dev/null"; echo "stopped" ;;
+  *) sed -n '2,9p' "$0" ;;
+esac

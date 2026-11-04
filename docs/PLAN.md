@@ -1,6 +1,22 @@
 # D3 plan: let the query optimizer decide which paused agents keep their KV cache
 
-Team 19, CS 5470. Owner: Aryan Patel (ap2568). Written 2026-11-04. Midpoint is Mon Nov 9; the poster is Mon Dec 7.
+CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a direction. D3 comes from Aryan's own "Idea 1" (Consumer C) in the team's *Sources of Latency* doc. Written 2026-11-04. The first milestone is **Sat Nov 7** (all three gates), the midpoint is Mon Nov 9, and the poster is Mon Dec 7.
+
+## Status (update this first; it is the handoff between sessions)
+
+| Item | State |
+|---|---|
+| Repo | github.com/KilroyHere/dbkv, cloned at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` |
+| Python env | Built in `$SCRATCH/envs/dbkv-env`: Python 3.11.7, vLLM 0.33.0, PyTorch 2.14 (CUDA 13; driver 580 is OK), DuckDB 2.0 |
+| Model | Qwen3-8B downloading to `$SCRATCH/huggingface` (Nov 4) |
+| Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
+| Push from Perlmutter | Blocked until a deploy key is added (see PERLMUTTER.md) |
+| G1 oracle simulation | Not started |
+| G2 `EXPLAIN` calibration | Not started; TPC-H not generated yet |
+| G3 memory limit | Not started |
+| Continuum code | Not located yet |
+
+**Next:** generate TPC-H (CPU job), then G2 and G1 in parallel, then G3 on a GPU by Saturday.
 
 ## 1. The project in one paragraph
 
@@ -49,9 +65,9 @@ Environment: use a separate virtual environment for the Continuum fork. Pin ever
 
 | What | Where | Notes |
 |---|---|---|
-| Repo | `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` | Backed up; teammates can read it through the existing ACLs. GitHub remote later, if the team wants one |
+| Repo | `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` | Backed up. Remote: github.com/KilroyHere/dbkv |
 | Data, DuckDB files, traces, model weights | `$SCRATCH/dbkv/` (`/pscratch/sd/a/ap2568/dbkv`) | Fast. Purged after 8 weeks without access, which is fine through Dec 7. Copy summaries into `results/` |
-| Python environments | `/global/common/software/m4999/` if writable, else `$SCRATCH/envs/` | NERSC recommends `/global/common/software` for installs; imports from CFS are slow. Use two envs: `dbkv` (CPU tools plus a recent vLLM for G3) and `continuum` (vLLM 0.10.2 fork) |
+| Python environments | `$SCRATCH/envs/dbkv-env` (built), and later `$SCRATCH/envs/continuum-env` | `/global/common/software/m4999` is shared by the whole class and was full. Imports from CFS are slow |
 | Editing, git, Claude Code | Login node, in the existing `team19-rc` tmux session | Light work only. No simulations, query runs or data generation |
 | G1 simulator, G2 calibration, TPC-H generation | CPU compute nodes, `shared` QOS, 16–32 cores | Charged against the CPU allocation (see Section 6) |
 | G3, baselines, mechanism, sweeps | GPU nodes, 1-GPU `shared` / `shared_interactive` | DuckDB runs on the 16 cores and 64 GB that come with each GPU, at no extra charge |
@@ -64,8 +80,11 @@ Environment: use a separate virtual environment for the Continuum fork. Pin ever
 
 | Dates | Work | Done when |
 |---|---|---|
-| **Wed Nov 4 – Thu Nov 5** | Move the repo to CFS; build both envs; download Qwen3-8B to `$SCRATCH`; locate Continuum's code and license and read its timeout rule; generate TPC-H in a CPU job; write the trace schema | `sim/` and `calib/` run in a shared CPU job |
-| **Thu Nov 5 – Sat Nov 7** | G1 simulator with back-of-envelope parameters. G2 on ~1,000 queries (TPC-H templates × parameters × SF1/SF10, BIRD dev gold SQL, exploration probes). Start G3 on Perlmutter if a GPU slot is free | G1 and G2 numbers exist |
+| **Wed Nov 4** | Perlmutter setup: repo, env, model download, the always-on Claude session (done or in progress). Generate TPC-H SF1/SF10 in a CPU job, with SF100 overnight | Setup works end to end |
+| **Thu Nov 5** | G2: `EXPLAIN` vs. runtime on ~1,000 queries (TPC-H templates × parameters, BIRD dev gold SQL, exploration probes), against per-template history on unseen templates. Locate Continuum's code and read its timeout rule | G2 scatter and accuracy table |
+| **Thu Nov 5 – Fri Nov 6** | G1 simulator: drop, always-keep, Continuum-style timeout, perfect knowledge, and `EXPLAIN` classes using G2's real errors, over ms-only, TPC-H and Redshift-like query times | p95 vs. sessions for each policy; the oracle gap |
+| **Fri Nov 6 – Sat Nov 7** | G3: synthetic replayer on stock vLLM, 2–32 sessions (~6 node-hours). Feed the measured prefill, reload and capacity numbers back into the simulator | Memory limit and time lost past it |
+| **Sat Nov 7** | Go/no-go call, written into Status | Decision |
 | **Sun Nov 8** | Midpoint slide: predictions next to results, plus a go/no-go call. Print by 5 pm if the midpoint is a poster | Slide or poster done |
 | **Mon Nov 9** | **Midpoint.** Ask the instructor and Bhaskar one specific question: is a GPU-side mechanism driven by the database in scope for the brief? | Feedback recorded |
 | **Nov 10 – 16** | Record agent traces (ReAct loop, Qwen3-8B, BIRD). Build the replayer. Get the Continuum fork running on Perlmutter and reproduce stock-vLLM and Continuum behavior. Finish G3 and refit the simulator to measured numbers | Baselines run under the replayer |
@@ -76,7 +95,7 @@ Environment: use a separate virtual environment for the Continuum fork. Pin ever
 
 ## 6. Compute budget
 
-The team has ~180 node-hours (45 per person). A 1-GPU shared job costs ¼ node-hour per hour, comes with 16 cores and 64 GB RAM, and is limited to 48 h. A 2-GPU job gets 128 GB at double the charge.
+This is a solo project, so the budget is Aryan's per-user cap: **45 GPU node-hours, about 37 left** (7.7 used as of Nov 3). A 1-GPU shared job costs ¼ node-hour per hour, comes with 16 cores and 64 GB RAM, and is limited to 48 h. A 2-GPU job gets 128 GB at double the charge.
 
 | Phase | Node-hours |
 |---|---|
@@ -84,7 +103,9 @@ The team has ~180 node-hours (45 per person). A 1-GPU shared job costs ¼ node-h
 | Build and debug (`shared_interactive`, 1 GPU, 4 h sessions) | ~10–20 |
 | Main sweeps (~500 runs × 15–20 min) | ~30–45, less if the simulator prunes the grid |
 | Ablations | ~15–25 |
-| **Total** | **~60–95** |
+| **Total if run as first planned** | **~60–95, over budget** |
+
+**Solo budget (~37):** G3 ~6, build and debug ~10, a pruned sweep ~15 (the simulator chooses which points to run on the GPU), ablations ~5. Drop the 4-GPU variant and the second model unless budget remains. If the cap becomes binding, ask the instructor whether more hours are available.
 
 **CPU node-hours.** On Nov 3, `iris` showed a **CPU cap of 10 node-hours per user** on m4999, so CPU time is not unlimited; check `iris` again. Shared CPU jobs are charged by the fraction of the node used, so the CPU work stays small:
 
@@ -100,7 +121,6 @@ The database inside GPU jobs costs nothing extra, which is why it is the default
 
 Constraints:
 - Host RAM limits CPU-offload runs. In a 1-GPU job, about 20 sessions fit (13 offloaded caches ≈ 38 GB, plus DuckDB). Bigger runs need a 2-GPU job.
-- If one person runs everything, they hit the 45 node-hour cap, so spread sweep jobs across accounts.
 - Never leave GPU jobs running unattended.
 
 ## 7. What the poster will claim
@@ -125,8 +145,7 @@ Constraints:
 
 Continuum (arXiv 2511.02230), InferCept, KVFlow, TOPAS (2608.25523), ThunderAgent, Autellix, NVIDIA Dynamo agent hints, arXiv 2601.12967, the Stony Brook project (github.com/Omkar38/agent-kv-retention), Leis et al. (cardinality errors), and Redshift short-query acceleration. For each, write a one-sentence delta in `docs/prior-art.md`.
 
-## 10. Open questions for the team and advisor
+## 10. Open questions for the advisor
 
-- Who wrote Idea 1 in *Sources of Latency*? D3 is its Consumer C, so credit them and invite them in.
 - Bhaskar's brief centers on a persistent tool-result cache. The bridge is that a cache hit is a zero-length pause, so it is one more class for the policy. Is that enough coverage of the brief?
-- Should this repo live on GitHub under the team? It is local only until the team decides.
+- Can the course grant more GPU hours if the 45-hour personal cap binds?
