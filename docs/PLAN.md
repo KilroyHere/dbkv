@@ -13,7 +13,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Push from Perlmutter | Works (deploy key) |
 | G1 oracle simulation | **v1 done** (job 60824732, 2 min, 0.004 node-h). **The oracle gap is about 0%:** always-keep + program FCFS is already as good as knowing each query's duration, so prediction 2a is not met. Taken at face value this is G1's kill condition. Before the Sat go/no-go: add a move-to-CPU action, refit costs from G3, and re-run (§2, 2a) |
 | TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 job 60824952 running. TPC-DS SF1/SF10 done (60824954, 26 s): `$SCRATCH/dbkv/tpcds/` |
-| G2 `EXPLAIN` calibration | Pipeline in `calib/` (generator, runner, analysis). The SF1 test (60825183) can't judge the kill rule: 99.8% of queries are under 0.25 s, so the classes are degenerate, though tertile diagnostics point the way prediction 6 says. **Full run 60825416 queued** (TPC-H SF10 + TPC-DS SF10, est. 0.08 node-h). SF100 run to follow |
+| G2 `EXPLAIN` calibration | **SF10 run done** (60825416, 12 min, 0.024 node-h; `results/g2_sf10_summary.md`). **ρ = 0.82 on unseen templates (kill line 0.5).** `EXPLAIN` halves history's log-error on unseen templates (0.40 vs 0.79), but its 3-class accuracy is 92.4% against history's 93.5%, because 93.5% of queries are short and history, for an unseen template, means always guessing short. The script's literal accuracy reading says kill; the ρ and error readings say pass. **The kill rule doesn't say which metric decides it, so that's Aryan's call; not changed.** Most SF10 queries are <0.25 s, so SF100 is needed for real long queries |
 | G3 memory limit | **Smoke test passed** (job 60824741, 14 min, 0.059 node-h). vLLM's KV pool is 134,448 tokens, against 132,512 predicted. At 20k × 10 sessions (1.5× the limit) there are 0% cache hits and p50 resume is 11.7 s. Main sweep script being prepared (subagent), ~1.35 node-h |
 | Continuum code | Env build job queued (`slurm/continuum_env.sbatch`; precompiled 0.10.2 kernels first). Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
@@ -85,7 +85,12 @@ Write these on the midpoint slide before seeing results, then score them afterwa
 3. Above the limit, with millisecond-only queries, always-keep plus program-level scheduling comes within 10% of Continuum.
 4. With Redshift-like query times (p50 0.1 s, p90 1.8 s, p99 26 s), per-call classes beat the per-tool timeout by 15–20% at p95.
 5. `EXPLAIN` puts queries in the correct one of three classes at least 70% of the time.
+   - *Observed, G2 job 60825416 (TPC-H SF10 + TPC-DS SF10, 1,824 queries, 128 templates; `results/g2_sf10_summary.md`): leave-one-template-out 3-class accuracy is **92.4%**. That is nominally met, but uninformative: 93.5% of queries are "short" (<0.25 s), so always guessing short scores 93.5%.*
+   - *Query times under the GPU-job caps: p50 24 ms, p90 0.18 s, p99 0.70 s, max 14 s. Only 2 of 1,824 are "long" (≥2 s).*
 6. `EXPLAIN` beats per-template history on templates it hasn't seen, but not on seen templates.
+   - *Observed, job 60825416. The direction matches on rank and error, but not on class accuracy.*
+     - *Unseen templates: `EXPLAIN` MAE is 0.40 log10 against 0.79 for history, which for an unseen template is the global median; Spearman ρ 0.82. But class accuracy is 92.4% against 93.5%.*
+     - *Seen templates: history is better, MAE 0.30 vs 0.32 and accuracy 96.9% vs 94.8%.*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
