@@ -14,6 +14,9 @@ export FLASHINFER_WORKSPACE_BASE=$SCRATCH/cache            # -> $SCRATCH/cache/.
 export VLLM_CACHE_ROOT=$SCRATCH/cache/vllm                  # torch.compile artifacts
 export TRITON_CACHE_DIR=$SCRATCH/cache/triton
 export TORCHINDUCTOR_CACHE_DIR=$SCRATCH/cache/inductor
+export XDG_CACHE_HOME=$SCRATCH/cache                       # uv, pip and anything else using ~/.cache
+export UV_CACHE_DIR=$SCRATCH/cache/uv                        # (uv lock on $HOME failed: job 60825842)
+export PIP_CACHE_DIR=$SCRATCH/cache/pip
 mkdir -p "$SCRATCH/cache" 2>/dev/null || true
 export DBKV_PY_MODULE=python/3.11-24.1.0
 

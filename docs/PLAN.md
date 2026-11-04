@@ -23,6 +23,10 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 1. Simulator fidelity: run the sim at G3's cells and report the p95 error per cell. Flag it if the error is large.
 2. Real-vLLM test of G1's headline: `--scheduling-policy priority` with priority = task start, against stock, at 8k and 20k above the limit (~0.5 node-h).
 3. `docs/prior-art.md`: is always-keep + program FCFS already shown (Autellix, Continuum, …)? One line per paper.
+   - **Done (Nov 4): partially shown.** InferCept, Continuum's ablation (Fig. 16), ThunderAgent and the Stony Brook repo each cover a piece. Nobody runs an always-keep arm or an oracle under program FCFS.
+   - **Counter-evidence:** arXiv 2609.18849 finds keep-all predictors up to ~25% worse than LRU without program FCFS, and argues pre-call estimates can't know tool durations.
+   - **Already taken:** 2608.30830 already reports that released Continuum is a fixed 2 s pin, and gives a ~109 s retain-vs-discard break-even on H100.
+   - **Still new:** the SQL pause-length crossover under program FCFS, `EXPLAIN` as a pre-call signal, and the separation of the scheduling win from the TTL win.
 4. `results/figures.py`: slide-ready G1/G2/G3 plots for Nov 9.
 5. Continuum env: a CPU job building `$SCRATCH/envs/continuum-env` from vllm-continuum (vLLM 0.10.2), trying precompiled wheels first.
 
