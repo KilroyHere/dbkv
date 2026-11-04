@@ -14,7 +14,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | G1 oracle simulation | Not started |
 | TPC-H data | SF1 + SF10 job 60823995 submitted Nov 4 (`slurm/tpch_gen.sbatch`, CPU shared, 16 cores, est. 0.03 node-h) → `$SCRATCH/dbkv/tpch/tpch_sf{1,10}.duckdb` |
 | G2 `EXPLAIN` calibration | Not started; waiting on TPC-H |
-| G3 memory limit | Not started |
+| G3 memory limit | Predicted limit pre-registered (§2, 1a): ~32 sessions at 4k, ~16 at 8k. Sweep designed (§3), ~1.0 node-h; replayer not written, nothing submitted |
 | Continuum code | Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
 **Next:** generate TPC-H (CPU job), then G2 and G1 in parallel, then G3 on a GPU by Saturday.
@@ -32,6 +32,17 @@ Many SQL agents share one A100-40GB. Each agent alternates between an LLM turn a
 Write these on the midpoint slide before seeing results, then score them afterwards.
 
 1. The memory limit falls at about 6–8 concurrent 20K-token Qwen3-8B agents per A100-40GB.
+1a. *(Written Nov 4, before any G3 run; computed by `harness/kv_limit.py`.)*
+    - **Inputs:**
+      - KV size: Qwen3-8B stores 2 × 36 layers × 8 KV heads × 128 head_dim × 2 B = **144 KiB per token**.
+      - Memory budget: 0.9 × 39.39 GiB = 35.45 GiB, under vLLM `gpu_memory_utilization` 0.9.
+      - Weights: 15.26 GiB.
+      - Overhead (activations, CUDA graphs and non-torch memory): 1–3 GiB.
+    - **KV pool:** 17.2–19.2 GiB, which is **≈ 132k tokens** (125k–140k).
+    - **Memory limit at 4k context: 32 sessions** (range 30–34).
+    - **Memory limit at 8k context: 16 sessions** (range 15–17).
+    - **Check at 20k context:** 6.5 sessions, which is consistent with prediction 1.
+    - **How it is scored:** against vLLM's startup line "GPU KV cache size: N tokens", and against the session count where preemption or prefix-cache misses on resumed turns first appear. *Observed: —*
 2. Below the limit, all policies land within 5% of each other.
 3. Above the limit, with millisecond-only queries, always-keep plus program-level scheduling comes within 10% of Continuum.
 4. With Redshift-like query times (p50 0.1 s, p90 1.8 s, p99 26 s), per-call classes beat the per-tool timeout by 15–20% at p95.
@@ -45,6 +56,29 @@ Write these on the midpoint slide before seeing results, then score them afterwa
 | **G1. Oracle simulation** | If every query's duration were known exactly, how much faster would agents finish than with Continuum's timeout? | `sim/`, CPU | Perfect knowledge beats Continuum's best timeout by <10% at p95 in every realistic setting. Then no predictor can help. |
 | **G2. `EXPLAIN` calibration** | Can the optimizer separate short, medium and long queries before running them? | `calib/`, CPU (DuckDB) | Spearman ρ < 0.5, or it does no better than per-template history on unseen templates. This kills only the database signal; Section 8 gives the fallback. |
 | **G3. Memory limit** | At how many agents does the KV cache run out, and how much p95 time is lost beyond that? | `harness/` replayer on stock vLLM, GPU (~6 node-hours) | No limit below 32 sessions, or recompute plus re-queueing stays under 10% of p95 per-turn latency |
+
+**G3 sweep design (Nov 4, not yet submitted).**
+- **Engine:** stock vLLM 0.33 from `dbkv-env`, with `gpu_memory_utilization` 0.9, prefix caching on and everything else default.
+- **Replayer:** a synthetic `harness/` replayer. G3 needs no database, so its pauses are synthetic.
+- **Sessions:** each session first fills its context to C tokens. It then loops through turns: a pause, then about 300 new input tokens (the tool result), then 150 output tokens.
+- **Pauses:** sampled from the Redshift-like mix (p50 0.1 s, p90 1.8 s, p99 26 s).
+- **Session counts:** chosen around the predicted limit N\*, from 0.25× to 3× N\*.
+
+| Context | Predicted N\* | Session counts |
+|---|---|---|
+| 4k | 32 | 8, 16, 24, 32, 40, 48, 64, 96 |
+| 8k | 16 | 4, 8, 12, 16, 20, 24, 32, 48 |
+
+- **Run length:** 16 points × 2 repeats. Each run is about 1 min of warm-up prefill plus 5 min of measurement. Prefix caches are reset between points, and the server starts once per job.
+- **Recorded:**
+  - From the replayer: time from tool return to first token (p50, p95), and task time.
+  - From `/metrics`: KV usage, prefix-cache hits, preemptions.
+  - Re-prefilled tokens.
+- **Budget:**
+  - Smoke test (`shared_interactive`, 30 min): 0.125 node-h. It also records vLLM's real KV token count, which checks prediction 1a for free.
+  - Main job, about 3.5 h of GPU time with a `--time 4:30` cap: about 0.9 node-h, at most 1.125.
+  - **Total about 1.0 node-h (at most 1.25), compared with the ~6 budgeted.**
+- **Caveat about the kill rule:** at 4k context the predicted limit (≈32) sits right on G3's "no limit below 32 sessions" kill line. Judge that rule at 8k and at the project's 20k premise, not at 4k.
 
 Order: G1 first, because it bounds everything. G2 can run in parallel. G3 also supplies the measured prefill, reload and capacity numbers that replace the simulator's back-of-envelope parameters.
 
