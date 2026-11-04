@@ -14,7 +14,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | G1 oracle simulation | **v1 done** (job 60824732, 2 min, 0.004 node-h). **The oracle gap is about 0%:** always-keep + program FCFS is already as good as knowing each query's duration, so prediction 2a is not met. Taken at face value this is G1's kill condition. Before the Sat go/no-go: add a move-to-CPU action, refit costs from G3, and re-run (§2, 2a) |
 | TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 not generated yet |
 | G2 `EXPLAIN` calibration | Not started; TPC-H ready, so it is unblocked |
-| G3 memory limit | Prediction 1a pre-registered (~32 sessions at 4k, ~16 at 8k, ~6.5 at 20k). Kill line amended to be judged at 8k and 20k (§3). Replayer `harness/replay.py` written. The first smoke job, 60824576, failed at engine start (FlashInfer lock on `$HOME`; fixed in `env.sh`); **retry 60824741 queued** (0.125 node-h). Main sweep ~1.35 node-h, not submitted |
+| G3 memory limit | **Smoke test passed** (job 60824741, 14 min, 0.059 node-h). vLLM's KV pool is 134,448 tokens, against 132,512 predicted. At 20k × 10 sessions (1.5× the limit) there are 0% cache hits and p50 resume is 11.7 s. Main sweep script being prepared (subagent), ~1.35 node-h |
 | Continuum code | Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
 **Next:** generate TPC-H (CPU job), then G2 and G1 in parallel, then G3 on a GPU by Saturday.
@@ -42,7 +42,12 @@ Write these on the midpoint slide before seeing results, then score them afterwa
     - **Memory limit at 4k context: 32 sessions** (range 30–34).
     - **Memory limit at 8k context: 16 sessions** (range 15–17).
     - **Check at 20k context:** 6.5 sessions, which is consistent with prediction 1.
-    - **How it is scored:** against vLLM's startup line "GPU KV cache size: N tokens", and against the session count where preemption or prefix-cache misses on resumed turns first appear. *Observed: —*
+    - **How it is scored:** against vLLM's startup line "GPU KV cache size: N tokens", and against the session count where preemption or prefix-cache misses on resumed turns first appear.
+    - *Observed, smoke job 60824741 (1 rep, 2 min per point):*
+      - *KV pool: vLLM reports **134,448 tokens**, 1.5% above the mid estimate and inside the 125k–140k range. vLLM's own split: weights + non-torch 15.44 GiB, peak activation 1.64 GiB, CUDA graphs 0.23 GiB, KV 18.46 GiB.*
+      - *8k × 16 and 20k × 6 (at the predicted limit): KV usage peaks at 97% and 94%. 89–90% of resumes are full prefix hits. p95 resume TTFT is 1.1–1.8 s, against 0.12 s at 4k × 8 with no memory pressure.*
+      - *20k × 10 (1.5× the limit): **0% full hits**. Resume TTFT p50 is 11.7 s and p95 14.7 s. No task completed in the 2-minute window.*
+      - *Session-level limits come from the main sweep.*
 2. Below the limit, all policies land within 5% of each other.
 2a. **G1 prediction** *(written Nov 4, before the G1 grid ran).*
     - **Values:** at 1.5–3× the memory limit with Redshift-like pauses, at 8k and 20k context, the oracle beats the best per-tool policy by **≥15% at p95** task time. "Best per-tool policy" means the best of stock LRU, always-keep, released Continuum (2 s), Continuum Eq. 1, and fixed timeouts from 0.1 to 30 s. Below the limit, and with millisecond-only pauses, the gap is **<5%**. An `EXPLAIN` stand-in with log-space noise σ = 1 recovers **about half** of the gap.
@@ -153,7 +158,7 @@ This is a solo project, so the budget is Aryan's per-user cap: **45 GPU node-hou
 
 | Phase | Node-hours |
 |---|---|
-| G3 memory limit | ~6 |
+| G3 memory limit | **Smoke test passed** (job 60824741, 14 min, 0.059 node-h). vLLM's KV pool is 134,448 tokens, against 132,512 predicted. At 20k × 10 sessions (1.5× the limit) there are 0% cache hits and p50 resume is 11.7 s. Main sweep script being prepared (subagent), ~1.35 node-h |
 | Build and debug (`shared_interactive`, 1 GPU, 4 h sessions) | ~10–20 |
 | Main sweeps (~500 runs × 15–20 min) | ~30–45, less if the simulator prunes the grid |
 | Ablations | ~15–25 |

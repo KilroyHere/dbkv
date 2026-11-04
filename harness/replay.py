@@ -10,7 +10,8 @@ Every task uses fresh random tokens, so sessions never share prefixes.
 
 Per point (C, N) it writes turns.csv, tasks.csv, metrics.jsonl (1 s samples) and summary.json:
   resume TTFT = tool return -> first token (turns k>0); recomputed = prompt - cached - new tokens
-  (a full hit still recomputes <16 tokens: the last partial KV block is never cached).
+  (a full hit still recomputes <=16 tokens: the last partial block (<=15) plus the final sampled token,
+  whose KV is never written; measured 2-16 in smoke job 60824741).
 
   python harness/replay.py --url http://127.0.0.1:8000 --points 4096:8,20480:6 --out DIR
 """
@@ -143,7 +144,7 @@ async def run_point(http, a, C, N, rep, outdir):
         resume_turns=len(res), resume_ttft_p50=pct([t["ttft"] for t in res], 50),
         resume_ttft_p95=pct([t["ttft"] for t in res], 95), turn_e2e_p95=pct([t["e2e"] for t in res], 95),
         tasks=len(tsk), task_p50=pct([t["dur"] for t in tsk], 50), task_p95=pct([t["dur"] for t in tsk], 95),
-        recomputed_tokens=int(sum(recomp)), resume_full_hit_frac=round(float(np.mean([r < 16 for r in recomp])), 4) if recomp else None,
+        recomputed_tokens=int(sum(recomp)), resume_full_hit_frac=round(float(np.mean([r <= 16 for r in recomp])), 4) if recomp else None,
         kv_usage_mean=round(float(np.mean(usage)), 4) if usage else None,
         kv_usage_max=round(float(np.max(usage)), 4) if usage else None,
         waiting_mean=round(float(np.mean(waiting)), 2) if waiting else None,
