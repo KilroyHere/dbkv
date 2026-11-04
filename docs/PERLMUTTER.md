@@ -43,6 +43,7 @@ This file logs the state and any manual steps. If something is changed by hand, 
 | `dbkv-claude start` | Starts tmux session `dbkv` on the current login node, inside the repo, and records the node in `~/.dbkv-claude-node`. Does nothing if it is already alive on its recorded node |
 | `dbkv-claude status` | Shows the recorded node, whether it is alive, and the last restart-log lines |
 | `dbkv-claude attach` | Opens the tmux session, hopping to the recorded node if needed. From the Mac: `ssh -t perlmutter dbkv-claude attach` |
+| `dbkv-claude peek` | One-screen view: last commits, the Status table, Slurm jobs, the job log (`$SCRATCH/dbkv/logs/jobs.tsv`) and the session's last chat messages. The Mac Claude uses this to see what the Perlmutter session is doing |
 | `dbkv-claude stop` | Stops the restart loop and the session |
 
 **What survives what:**
@@ -96,4 +97,6 @@ A 1-GPU `shared` job costs ¼ node-hour per hour and gets 16 cores and 64 GB RAM
 | 2026-11-04 | Qwen3-8B download (`--model` step) | ok: 16.4 GB, snapshot `b968826d` |
 | 2026-11-04 | Deploy key `~/.ssh/dbkv_deploy` generated; `github-dbkv` ssh alias; origin switched to ssh | key not yet added on GitHub |
 | 2026-11-04 | Old setup removed: `team19-rc` launcher, `~/.team19-rc-node`, tmux `claude` (old RC session in the deleted `team19/code`), the failed `/global/common/software/m4999/ap2568` | done |
-| 2026-11-04 | `dbkv-claude` installed; session `dbkv` started on login33 | waiting for the user to answer Claude's one-time folder-trust prompt |
+| 2026-11-04 | `dbkv-claude` installed; session `dbkv` started on login33 | ok: trust prompt answered, Remote Control live as `dbkv-perlmutter` |
+| 2026-11-04 | Deploy key added on GitHub | ok: `git ls-remote origin` works over ssh |
+| 2026-11-04 | Added `dbkv-claude peek` and the job log `$SCRATCH/dbkv/logs/jobs.tsv` | ok |

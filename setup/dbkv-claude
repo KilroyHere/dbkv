@@ -4,6 +4,7 @@
 #   dbkv-claude start    start it on this login node (no-op if already alive on its recorded node)
 #   dbkv-claude status   which node, is tmux/claude alive, last log lines
 #   dbkv-claude attach   open the tmux session (hops to the recorded node if needed)
+#   dbkv-claude peek     one-screen view: git, Status, Slurm jobs, last chat messages
 #   dbkv-claude stop     stop the loop and the session
 #
 # From the Mac:  ssh -t perlmutter dbkv-claude attach
@@ -52,6 +53,26 @@ case "${1:-status}" in
   attach)
     alive || { echo "not running; run: dbkv-claude start"; exit 1; }
     if [[ "$node" == "$here" ]]; then exec tmux attach -t "$SESSION"; else exec ssh -t "$node" tmux attach -t "$SESSION"; fi ;;
+  peek)  # one-screen view of what the session is doing (for you or the Mac Claude: ssh perlmutter dbkv-claude peek)
+    echo "== session"; alive && echo "alive on $node" || echo "NOT running"
+    echo "== git"; git -C "$REPO" log --oneline -3; git -C "$REPO" status --short | head -5
+    echo "== status (docs/PLAN.md)"; sed -n '/^## Status/,/^\*\*Next/p' "$REPO/docs/PLAN.md" | tail -n +3
+    echo "== slurm"; squeue -u "$USER" -o "%.10i %.20j %.8T %.10M %.6D %R" 2>/dev/null
+    echo "== recent jobs (logs/jobs.tsv)"; tail -5 "$SCRATCH/dbkv/logs/jobs.tsv" 2>/dev/null
+    echo "== last messages"
+    t=$(ls -t "$HOME"/.claude/projects/*team19-ap2568-dbkv/*.jsonl 2>/dev/null | head -1)
+    [[ -n "$t" ]] && tail -200 "$t" | /usr/bin/python3 -c '
+import sys, json
+out = []
+for line in sys.stdin:
+    try: m = json.loads(line)
+    except Exception: continue
+    if m.get("type") not in ("user", "assistant"): continue
+    c = m.get("message", {}).get("content")
+    if isinstance(c, list):
+        c = " ".join(x.get("text", "") for x in c if isinstance(x, dict) and x.get("type") == "text")
+    if c and c.strip(): out.append("[%s] %s" % (m["type"], " ".join(c.split())[:300]))
+print("\n".join(out[-6:]))' ;;
   stop)
     touch "$STOP_FILE"; on_node "tmux kill-session -t $SESSION 2>/dev/null"; echo "stopped" ;;
   *) sed -n '2,9p' "$0" ;;

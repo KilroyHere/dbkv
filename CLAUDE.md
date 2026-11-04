@@ -13,7 +13,9 @@ The project is **dbkv** (direction D3), Aryan Patel's CS 5470 project, done solo
 - **Never leave GPU jobs running unattended.** Every job gets a `--time` limit. Check `squeue -u $USER` before ending a session.
 - **Where things go.** Code goes in this repo (CFS). Data, traces, run outputs and logs go in `$SCRATCH/dbkv`. Only small summaries go in `results/`.
 - **Pre-registration.** Before running a gate (G1–G3), write its prediction into PLAN.md. Never edit a prediction after seeing results; add the observed number next to it.
-- **Git.** Commit small and push. The remote is github.com/KilroyHere/dbkv.
+- **Git.** Commit and push after each finished step, so progress is visible on GitHub. The remote is github.com/KilroyHere/dbkv, reached through the `github-dbkv` deploy key.
+- **Job log.** When you submit a Slurm job, append one line to `$SCRATCH/dbkv/logs/jobs.tsv`: date, job id, purpose, partition, estimated node-hours. When it ends, add a line with the actual node-hours. `dbkv-claude peek` shows this file, and it is how the budget gets tracked.
+- **Visibility.** Aryan, and a helper Claude on his Mac, check on you with `dbkv-claude peek`. It shows git, the Status table, Slurm jobs, the job log and your last messages. Keep the Status table current.
 
 ## Environment
 
