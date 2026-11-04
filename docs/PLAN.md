@@ -213,6 +213,34 @@ Constraints:
 | The Continuum fork won't run by Nov 16 | Evaluate policies in the simulator, calibrated against measured stock-vLLM runs. Implement only one policy in the engine, or none, and say so on the poster |
 | Behind schedule on Nov 23 | Drop Postgres, TP=4 and the second model. Keep the three query-time mixes and the oracle |
 
+### 8a. Draft for the Sat Nov 7 decision (written Nov 4, before G1 v2 results; Aryan decides)
+
+G1 v1 found the oracle gap ≈ 0% at today's Redshift-like pause lengths. G1 v2 sweeps pause length (1×, 3×, 10×, 30× and an SF100 mix) and plots the gap against *r = mean pause ÷ mean generation time per turn*. The decision turns on whether a crossover exists.
+
+**(a) A crossover exists at realistic pause lengths, so D3 narrows to that regime.**
+- **Condition:** the oracle gap reaches ≥10% at p95 for some r\* that real SQL workloads reach: SF100 query times, or Redshift's slow tail (p90 1.8 s, p99 26 s). It must hold under G3-refitted costs, and with the breaker-free `keep-ac` and offload variants included among the per-tool policies.
+- **RQ becomes:** "for SQL agents whose query time is comparable to or longer than generation time (r ≥ r\*), does a per-call `EXPLAIN` class beat program-level FCFS + always-keep?"
+- **Plan changes:**
+  - The main workload becomes the long-pause regime: SF100, and the Redshift tail at scale ≥ r\*.
+  - G2 is judged on whether `EXPLAIN` separates calls around the pause length that matters, not on generic 0.25 s / 2 s classes.
+  - The engine work shrinks to a per-call pin/offload hint on top of program FCFS. Continuum's per-tool timeout stays the baseline.
+- **Poster:** (1) where SQL-agent time goes and where the memory limit is (G3); (2) the r\* crossover plot; (3) the `EXPLAIN` hint recovering part of the gap above r\*; (4) released Continuum underperforming always-keep, as its own panel.
+- **Risk:** if `EXPLAIN` is noisy (the G1 v1 noisy stand-in lost 8–30%), even (a) can fail at the mechanism stage. The noisy-oracle rows at σ = 0.5 and 1 bound how good G2 must be.
+
+**(b) No crossover, so pivot to characterization: when program-level FCFS is enough, and when it isn't.**
+- **Condition:** the gap stays <10% across r, contexts and loads, or crosses only at r far beyond realistic SQL. Then D3's mechanism is unnecessary on this hardware.
+- **RQ becomes:** "for multi-turn SQL agents on one GPU, which serving choices (scheduling order, retention, offload) set p95 task time, and where does each stop helping?"
+- **Plan changes:**
+  - Drop the engine fork and the `EXPLAIN` hint path.
+  - Measure on real vLLM: stock vs program-priority (`--scheduling-policy priority`, tier-2 item 2), with and without CPU offload, across the G3 grid and pause scales.
+  - The simulator, once checked against G3 (tier-2 item 1), extends the measurements to the regions not run on the GPU.
+  - G2 becomes a side result: how well `EXPLAIN` predicts SQL time, and whether it beats template history on unseen templates.
+- **Poster:** (1) the memory-limit anatomy (G3); (2) program FCFS vs request FCFS (stock), measured on real vLLM; (3) released Continuum vs always-keep, likely its own finding; (4) the gap-vs-r plot showing where duration knowledge would start to matter; (5) the `EXPLAIN`-calibration result.
+- **Prior-art check needed first** (tier-2 item 3): whether Autellix, Continuum or others already show that always-keep + program FCFS is enough. If they do, (b) is a confirmation on SQL agents plus the Continuum-vs-keep finding, which is weaker but honest.
+- **Budget:** (b) needs less GPU than (a), about 3–5 node-h of measured runs and no engine debugging.
+
+**Inputs still needed on Sat:** G1 v2 with G3 costs, the G3 sweep summary, G2 at SF10/SF100/TPC-DS, the sim-vs-G3 fidelity error, and the prior-art lines.
+
 ## 9. Prior art to audit (open the papers yourself)
 
 Continuum (arXiv 2511.02230), InferCept, KVFlow, TOPAS (2608.25523), ThunderAgent, Autellix, NVIDIA Dynamo agent hints, arXiv 2601.12967, the Stony Brook project (github.com/Omkar38/agent-kv-retention), Leis et al. (cardinality errors), and Redshift short-query acceleration. For each, write a one-sentence delta in `docs/prior-art.md`.
