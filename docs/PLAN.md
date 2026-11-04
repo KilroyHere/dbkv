@@ -11,7 +11,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Model | Qwen3-8B in `$SCRATCH/huggingface` (16.4 GB, snapshot `b968826d`) |
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Works (deploy key) |
-| G1 oracle simulation | **v1 done** (job 60824732, 2 min, 0.004 node-h). **The oracle gap is about 0%:** always-keep + program FCFS is already as good as knowing each query's duration, so prediction 2a is not met. Taken at face value this is G1's kill condition. Before the Sat go/no-go: add a move-to-CPU action, refit costs from G3, and re-run (§2, 2a) |
+| G1 oracle simulation | **v2a done** (60825742, 18 min, 0.074 CPU node-h; guessed costs). **No crossover:** the oracle gap is ≤ 10.6% at 1–30× pause scales, mostly about 0%, with a weak 5–10% bump at pause ÷ generation ≈ 0.5–2 (20k, high load). Offload is the real lever. `keep` needs the breaker in 30% of runs; breaker-free `keep-ac` matches it at 1×. Released Continuum is 13–54% worse than `keep-ac` at 1–3× and better at 10–30×. v2b (G3 costs + SF100 mix) still to come (§2, 2a) |
 | TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 **done** (60824952, 20 min, 0.041 node-h; `tpch_sf100.duckdb`, 27 GiB, row counts checked). TPC-DS SF1/SF10 done (60824954, 26 s): `$SCRATCH/dbkv/tpcds/` |
 | G2 `EXPLAIN` calibration | **SF10 run done** (60825416, 12 min, 0.024 node-h; `results/g2_sf10_summary.md`). **ρ = 0.82 on unseen templates (kill line 0.5).** `EXPLAIN` halves history's log-error on unseen templates (0.40 vs 0.79), but its 3-class accuracy is 92.4% against history's 93.5%, because 93.5% of queries are short and history, for an unseen template, means always guessing short. The script's literal accuracy reading says kill; the ρ and error readings say pass. **The kill rule doesn't say which metric decides it, so that's Aryan's call; not changed.** Most SF10 queries are <0.25 s, so SF100 is needed for real long queries |
 | G3 memory limit | **Smoke test passed** (job 60824741, 14 min, 0.059 node-h). vLLM's KV pool is 134,448 tokens, against 132,512 predicted. At 20k × 10 sessions (1.5× the limit) there are 0% cache hits and p50 resume is 11.7 s. Main sweep script being prepared (subagent), ~1.35 node-h |
@@ -82,6 +82,23 @@ Write these on the midpoint slide before seeing results, then score them afterwa
         2. *Its cost parameters are guesses until G3.*
         3. *About 23% of runs hit the deadlock breaker.*
       - *Taken at face value, this meets G1's kill rule (<10% in every realistic setting). See the Status table.*
+    - *Observed, G1 v2a (job 60825742, still guessed GPU costs; 33,000 runs, 5 seeds; `results/g1v2_gap.csv`, `g1v2_breaker.csv`, `g1v2_gap_vs_ratio.png`):*
+      - *What v2 adds: offload for every policy, Belady (furthest-return) victims for the oracle, the breaker counted per policy, and the breaker-free `keep-ac`.*
+      - *Aggregation is strict: a policy is invalid at a cell if any seed completed no task. The first, lenient aggregate averaged over surviving seeds and showed 40–56% "gaps" that were artifacts of starvation.*
+      - *Oracle gap above the limit, by pause scale. Max/median gap, and cells ≥ 10% out of 13:*
+        - *1×: 0.9 / 0.0, 0 of 13 (pause ÷ generation r = 0.15–0.21).*
+        - *3×: 10.6 / 2.6, 1 of 13 (r = 0.42–0.81).*
+        - *10×: 10.0 / 0.0, 1 of 13 (r = 1.3–4.7).*
+        - *30×: 16.5 / 0.0, 1 of 13 (r = 9–19). The 16.5% cell is one seed: 206 s against 752–936 s for the other four.*
+        - *ms-only: 0 / 0.*
+      - *Reading: **no crossover.** There is a weak bump to about 5–10% at r ≈ 0.5–2 for 20k at high load. Prediction 2a is still not met.*
+      - *Best per-tool policies are mostly offload variants (`lru+off`, short `ttl+off`). Offload, not duration knowledge, is the lever above the limit.*
+      - *Deadlock breaker:*
+        - *`keep` hits it in 30% of runs (cells ≥ 1.2×). `keep-ac` hits it in 0%.*
+        - *At 1× pauses, `keep-ac` is within ~3% of `keep` or better, so always-keep's v1 win was not the breaker evicting for it.*
+        - *At 10–30× pauses `keep-ac` is 10–40% worse, because admission control idles the GPU.*
+      - *Starvation: oracle variants starve a seed in 166 of 9,600 runs. Pinning until return under strict program FCFS can block the queue head.*
+      - *Released Continuum (`cont2`) vs `keep-ac`, median over cells above the limit: +13% at 1×, +54% at 3× (worse), −11% at 10× and −20% at 30× (better).*
 3. Above the limit, with millisecond-only queries, always-keep plus program-level scheduling comes within 10% of Continuum.
 4. With Redshift-like query times (p50 0.1 s, p90 1.8 s, p99 26 s), per-call classes beat the per-tool timeout by 15–20% at p95.
 5. `EXPLAIN` puts queries in the correct one of three classes at least 70% of the time.

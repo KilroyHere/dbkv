@@ -51,6 +51,7 @@ def main():
     ap.add_argument("--quick", action="store_true", help="short horizon, 1 seed, fewer cells (debug)")
     ap.add_argument("--cost-json", default="", help="override Cfg cost fields (t0, c_pf, c_dec, c_att, kv_tokens)")
     ap.add_argument("--pause-file", default="", help="empirical pause seconds, added as mix 'file'")
+    ap.add_argument("--from-results", default="", help="re-aggregate an existing results.csv instead of simulating")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     costs = json.load(open(a.cost_json)) if a.cost_json else {}
@@ -76,13 +77,22 @@ def main():
                             else:
                                 kw["mix"] = mix
                             jobs.append(kw)
-    print(f"{len(jobs)} runs on {a.procs} procs", flush=True)
-    t = time.time()
-    with Pool(a.procs) as p:
-        rows = p.map(run, jobs, chunksize=8)
-    print(f"done in {time.time() - t:.0f} s", flush=True)
-    with open(os.path.join(a.out, "results.csv"), "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
+    if a.from_results:
+        rows = []
+        for r in csv.DictReader(open(a.from_results)):
+            for k, v in r.items():
+                if k not in ("mix", "policy", "sched"):
+                    r[k] = float(v) if ("." in v or "e" in v or v == "nan") else int(v)
+            rows.append(r)
+        print(f"re-aggregating {len(rows)} runs from {a.from_results}", flush=True)
+    else:
+        print(f"{len(jobs)} runs on {a.procs} procs", flush=True)
+        t = time.time()
+        with Pool(a.procs) as p:
+            rows = p.map(run, jobs, chunksize=8)
+        print(f"done in {time.time() - t:.0f} s", flush=True)
+        with open(os.path.join(a.out, "results.csv"), "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
     json.dump(dict(costs=costs, seeds=seeds, quick=a.quick, pause_file=a.pause_file, mixes=mixes),
               open(os.path.join(a.out, "config.json"), "w"), indent=1)
 
@@ -92,9 +102,15 @@ def main():
         agg[(r["mix"], r["pause_scale"], r["ctx"], r["sessions"], r["policy"], r["sched"], r["offload"])].append(r)
 
     def m(key, field):
+        # Strict: if any seed completed no measured task (p95 = NaN, i.e. agents starved), the
+        # policy is invalid at this cell (NaN), never averaged over the surviving seeds.
         v = [x[field] for x in agg.get(key, [])]
-        v = [x for x in v if x == x]
-        return float(np.mean(v)) if v else float("nan")
+        if not v or any(x != x for x in v):
+            return float("nan")
+        return float(np.mean(v))
+
+    def starved(key):
+        return sum(x["task_p95"] != x["task_p95"] for x in agg.get(key, []))
 
     gap_rows, brk_rows = [], []
     for mix, scale in mixes:
@@ -138,6 +154,7 @@ def main():
                             runs=len(rs), runs_with_breaker=sum(r["breaker_events"] > 0 for r in rs),
                             breaker_events_mean=round(float(np.mean([r["breaker_events"] for r in rs])), 1),
                             breaker_tokens_mean=int(np.mean([r["breaker_tokens"] for r in rs])),
+                            seeds_starved=starved(cell + (p, s, o)),
                             task_p95=round(m(cell + (p, s, o), "task_p95"), 2)))
 
     for name, rows_ in (("gap.csv", gap_rows), ("breaker.csv", brk_rows)):
