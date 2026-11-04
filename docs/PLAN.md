@@ -11,10 +11,10 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Model | Qwen3-8B in `$SCRATCH/huggingface` (16.4 GB, snapshot `b968826d`) |
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Works (deploy key) |
-| G1 oracle simulation | Not started |
+| G1 oracle simulation | Starting in `sim/` (Redshift-like pauses, `sim/pauses.py`) |
 | TPC-H data | SF1 + SF10 job 60823995 submitted Nov 4 (`slurm/tpch_gen.sbatch`, CPU shared, 16 cores, est. 0.03 node-h) → `$SCRATCH/dbkv/tpch/tpch_sf{1,10}.duckdb` |
 | G2 `EXPLAIN` calibration | Not started; waiting on TPC-H |
-| G3 memory limit | Predicted limit pre-registered (§2, 1a): ~32 sessions at 4k, ~16 at 8k. Sweep designed (§3), ~1.0 node-h; replayer not written, nothing submitted |
+| G3 memory limit | Prediction 1a pre-registered (~32 sessions at 4k, ~16 at 8k, ~6.5 at 20k). Kill line amended to be judged at 8k and 20k (§3). Replayer `harness/replay.py` written; **smoke job 60824576 queued** (0.125 node-h). Main sweep ~1.35 node-h, not submitted |
 | Continuum code | Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
 **Next:** generate TPC-H (CPU job), then G2 and G1 in parallel, then G3 on a GPU by Saturday.
@@ -68,17 +68,18 @@ Write these on the midpoint slide before seeing results, then score them afterwa
 |---|---|---|
 | 4k | 32 | 8, 16, 24, 32, 40, 48, 64, 96 |
 | 8k | 16 | 4, 8, 12, 16, 20, 24, 32, 48 |
+| 20k | 6.5 | 2, 4, 6, 8, 10, 12, 16, 20 |
 
-- **Run length:** 16 points × 2 repeats. Each run is about 1 min of warm-up prefill plus 5 min of measurement. Prefix caches are reset between points, and the server starts once per job.
+- **Run length:** 24 points × 2 repeats. Each run is about 1 min of warm-up prefill plus 5 min of measurement. Prefix caches are reset between points, and the server starts once per job.
 - **Recorded:**
   - From the replayer: time from tool return to first token (p50, p95), and task time.
   - From `/metrics`: KV usage, prefix-cache hits, preemptions.
   - Re-prefilled tokens.
-- **Budget:**
-  - Smoke test (`shared_interactive`, 30 min): 0.125 node-h. It also records vLLM's real KV token count, which checks prediction 1a for free.
-  - Main job, about 3.5 h of GPU time with a `--time 4:30` cap: about 0.9 node-h, at most 1.125.
-  - **Total about 1.0 node-h (at most 1.25), compared with the ~6 budgeted.**
-- **Caveat about the kill rule:** at 4k context the predicted limit (≈32) sits right on G3's "no limit below 32 sessions" kill line. Judge that rule at 8k and at the project's 20k premise, not at 4k.
+- **Budget** (revised Nov 4, after adding the 20k row):
+  - Smoke test (job 60824576, 1 GPU `shared`, 30 min): 0.125 node-h. It covers 4k:8, 8k:16, 20k:6 and 20k:10, records vLLM's real KV token count, and exercises the 20k path and an above-limit point.
+  - Main sweep: 48 runs × ~6.5 min (60 s warm-up, 300 s measured, about 30 s drain) ≈ 5.2 h, plus about 10 min for server start ≈ 5.4 h ≈ **1.35 node-h**, with `--time 7:00` (cap 1.75). It may be split into a 4k+8k job (~0.9) and a 20k job (~0.45).
+  - **Total about 1.5 node-h (at most 1.9), compared with the ~6 budgeted.**
+- **Amendment, Nov 4, before any G3 data, because the 4k prediction sits on the line.** G3's kill line, "no limit below 32 sessions", is judged at **8k and 20k context**, not at 4k. That is because 4k's predicted limit (≈32, prediction 1a) falls right on the line, so the 4k result would trip it by construction. The 4k row is still measured and reported in full. The 20k row was added so the line can be judged at the project's premise context.
 
 Order: G1 first, because it bounds everything. G2 can run in parallel. G3 also supplies the measured prefill, reload and capacity numbers that replace the simulator's back-of-envelope parameters.
 
