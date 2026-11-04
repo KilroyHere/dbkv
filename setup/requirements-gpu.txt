@@ -1,0 +1,4 @@
+# Stock vLLM for G3 and the baselines. Exact versions land in requirements.lock.txt.
+# The Continuum fork (vLLM 0.10.2) gets its own env later; see engine/README.md.
+vllm
+huggingface_hub[cli]
