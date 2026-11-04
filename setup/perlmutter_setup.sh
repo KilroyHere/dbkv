@@ -13,7 +13,7 @@ mkdir -p "$DBKV_DATA"/{tpch,bird,traces,runs,logs}
 
 echo "== 2. Python env at $DBKV_ENV"
 mkdir -p "$(dirname "$DBKV_ENV")"
-chmod 700 "$(dirname "$DBKV_ENV")"   # group m4999 is the whole class; keep this private
+chmod 700 "$(dirname "$DBKV_ENV")"
 if [ ! -f "$DBKV_ENV/bin/activate" ]; then
   module load "$DBKV_PY_MODULE"
   python -m venv "$DBKV_ENV"

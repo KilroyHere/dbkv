@@ -4,7 +4,8 @@
 
 export DBKV_REPO=/global/cfs/cdirs/m4999/team19/ap2568/dbkv
 export DBKV_DATA=$SCRATCH/dbkv                                   # DuckDB files, traces, raw results
-export DBKV_ENV=/global/common/software/m4999/ap2568/dbkv-env    # Python venv: CPU tools + stock vLLM
+export DBKV_ENV=$SCRATCH/envs/dbkv-env                          # Python venv: CPU tools + stock vLLM
+# (not /global/common/software/m4999: that quota is shared by the whole class and was full on 2026-11-04)
 export HF_HOME=$SCRATCH/huggingface                              # shared HF cache (already holds HW models)
 export DBKV_MODEL=Qwen/Qwen3-8B
 export DBKV_PY_MODULE=python/3.11-24.1.0
