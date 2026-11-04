@@ -12,8 +12,8 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Works (deploy key) |
 | G1 oracle simulation | Simulator `sim/kvsim.py` + grid `sim/g1_grid.py` written. Prediction 2a pre-registered. **Grid job 60824732 queued** (CPU, est. 0.02 node-h); output → `results/g1_gap.csv` |
-| TPC-H data | SF1 + SF10 job 60823995 submitted Nov 4 (`slurm/tpch_gen.sbatch`, CPU shared, 16 cores, est. 0.03 node-h) → `$SCRATCH/dbkv/tpch/tpch_sf{1,10}.duckdb` |
-| G2 `EXPLAIN` calibration | Not started; waiting on TPC-H |
+| TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 not generated yet |
+| G2 `EXPLAIN` calibration | Not started; TPC-H ready, so it is unblocked |
 | G3 memory limit | Prediction 1a pre-registered (~32 sessions at 4k, ~16 at 8k, ~6.5 at 20k). Kill line amended to be judged at 8k and 20k (§3). Replayer `harness/replay.py` written. The first smoke job, 60824576, failed at engine start (FlashInfer lock on `$HOME`; fixed in `env.sh`); **retry 60824741 queued** (0.125 node-h). Main sweep ~1.35 node-h, not submitted |
 | Continuum code | Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
