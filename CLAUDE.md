@@ -7,7 +7,7 @@ The project is **dbkv** (direction D3), Aryan Patel's CS 5470 project, done solo
 
 ## Rules
 
-- **Run heavy work in Slurm jobs, never on the login node.** That covers TPC-H generation, query runs, simulator grids and anything on a GPU. Job scripts live in `slurm/` and start with `source setup/env.sh`.
+- **Run heavy work in Slurm jobs, never on the login node.** That covers TPC-H generation, query runs, simulator grids and anything on a GPU. Job scripts live in `slurm/` and start with `source setup/env.sh`. Heavy work that doesn't need a GPU goes on **CPU nodes** (`--constraint=cpu`, `shared` QOS), never in a GPU job or on the login node (Aryan, Nov 4).
 - **GPU budget.** About 37 node-hours remain of Aryan's 45 per-user cap (7.7 used as of Nov 3). A 1-GPU `shared` job costs ¼ node-hour per hour. Check `iris` before a sweep, and put each job's estimated node-hours in its commit or log entry.
 - **CPU budget.** The cap is 10 node-hours per user. Use small `shared` CPU jobs with 16–32 cores.
 - **Never leave GPU jobs running unattended.** Every job gets a `--time` limit. Check `squeue -u $USER` before ending a session.
