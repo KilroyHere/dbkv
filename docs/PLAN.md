@@ -12,9 +12,10 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Works (deploy key) |
 | G1 oracle simulation | Not started |
-| G2 `EXPLAIN` calibration | Not started; TPC-H not generated yet |
+| TPC-H data | SF1 + SF10 job 60823995 submitted Nov 4 (`slurm/tpch_gen.sbatch`, CPU shared, 16 cores, est. 0.03 node-h) → `$SCRATCH/dbkv/tpch/tpch_sf{1,10}.duckdb` |
+| G2 `EXPLAIN` calibration | Not started; waiting on TPC-H |
 | G3 memory limit | Not started |
-| Continuum code | Not located yet |
+| Continuum code | Lookup in progress (→ §9) |
 
 **Next:** generate TPC-H (CPU job), then G2 and G1 in parallel, then G3 on a GPU by Saturday.
 
