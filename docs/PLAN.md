@@ -8,7 +8,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 |---|---|
 | Repo | github.com/KilroyHere/dbkv, cloned at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` |
 | Python env | Built in `$SCRATCH/envs/dbkv-env`: Python 3.11.7, vLLM 0.33.0, PyTorch 2.14 (CUDA 13; driver 580 is OK), DuckDB 2.0 |
-| Model | Qwen3-8B downloading to `$SCRATCH/huggingface` (Nov 4) |
+| Model | Qwen3-8B in `$SCRATCH/huggingface` (16.4 GB, snapshot `b968826d`) |
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Blocked until a deploy key is added (see PERLMUTTER.md) |
 | G1 oracle simulation | Not started |

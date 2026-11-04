@@ -93,7 +93,7 @@ A 1-GPU `shared` job costs ¼ node-hour per hour and gets 16 cores and 64 GB RAM
 | 2026-11-04 | Repo cloned to CFS from GitHub | ok (`cacea18`) |
 | 2026-11-04 | `perlmutter_setup.sh --model` on login14 | failed: `/global/common/software/m4999` over quota (shared by the class) |
 | 2026-11-04 | Env moved to `$SCRATCH/envs/dbkv-env`; setup re-run on login33 | ok: Python 3.11.7, vLLM 0.33.0, PyTorch 2.14.0+cu130, DuckDB 2.0.0. GPU driver 580.178 (supports CUDA 13) |
-| 2026-11-04 | Qwen3-8B download (`--model` step) | in progress |
+| 2026-11-04 | Qwen3-8B download (`--model` step) | ok: 16.4 GB, snapshot `b968826d` |
 | 2026-11-04 | Deploy key `~/.ssh/dbkv_deploy` generated; `github-dbkv` ssh alias; origin switched to ssh | key not yet added on GitHub |
 | 2026-11-04 | Old setup removed: `team19-rc` launcher, `~/.team19-rc-node`, tmux `claude` (old RC session in the deleted `team19/code`), the failed `/global/common/software/m4999/ap2568` | done |
-| 2026-11-04 | `dbkv-claude` installed; session `dbkv-perlmutter` started | see Status in PLAN.md |
+| 2026-11-04 | `dbkv-claude` installed; session `dbkv` started on login33 | waiting for the user to answer Claude's one-time folder-trust prompt |
