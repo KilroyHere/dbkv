@@ -12,12 +12,25 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Works (deploy key) |
 | G1 oracle simulation | **v1 done** (job 60824732, 2 min, 0.004 node-h). **The oracle gap is about 0%:** always-keep + program FCFS is already as good as knowing each query's duration, so prediction 2a is not met. Taken at face value this is G1's kill condition. Before the Sat go/no-go: add a move-to-CPU action, refit costs from G3, and re-run (§2, 2a) |
-| TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 not generated yet |
-| G2 `EXPLAIN` calibration | Not started; TPC-H ready, so it is unblocked |
+| TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 job 60824952 running. TPC-DS SF1/SF10 done (60824954, 26 s): `$SCRATCH/dbkv/tpcds/` |
+| G2 `EXPLAIN` calibration | Pipeline in `calib/` (generator, runner, analysis). The SF1 test (60825183) can't judge the kill rule: 99.8% of queries are under 0.25 s, so the classes are degenerate, though tertile diagnostics point the way prediction 6 says. **Full run 60825416 queued** (TPC-H SF10 + TPC-DS SF10, est. 0.08 node-h). SF100 run to follow |
 | G3 memory limit | **Smoke test passed** (job 60824741, 14 min, 0.059 node-h). vLLM's KV pool is 134,448 tokens, against 132,512 predicted. At 20k × 10 sessions (1.5× the limit) there are 0% cache hits and p50 resume is 11.7 s. Main sweep script being prepared (subagent), ~1.35 node-h |
 | Continuum code | Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
-**Next:** generate TPC-H (CPU job), then G2 and G1 in parallel, then G3 on a GPU by Saturday.
+**Next (tier 1):** the G3 main sweep, once the subagent's script is reviewed; the G2 SF10 run, then SF100; G1 v2 (offload, a breaker visible per policy, pause scale 1/3/10/30× plus an SF100 mix, the oracle gap plotted against pause/generation time, Continuum as its own line); a draft of §8 options (a) crossover and (b) characterization pivot before Sat.
+
+**Tier 2 (Aryan, Nov 4), in order, whenever tier 1 is blocked on jobs:**
+1. Simulator fidelity: run the sim at G3's cells and report the p95 error per cell. Flag it if the error is large.
+2. Real-vLLM test of G1's headline: `--scheduling-policy priority` with priority = task start, against stock, at 8k and 20k above the limit (~0.5 node-h).
+3. `docs/prior-art.md`: is always-keep + program FCFS already shown (Autellix, Continuum, …)? One line per paper.
+4. `results/figures.py`: slide-ready G1/G2/G3 plots for Nov 9.
+5. Continuum env: a CPU job building `$SCRATCH/envs/continuum-env` from vllm-continuum (vLLM 0.10.2), trying precompiled wheels first.
+
+**Guardrails while running unattended:**
+- If total project GPU spend passes **5 node-h** before Sat, stop and notify Aryan.
+- Never change a gate, kill rule or prediction. Record observations only; changes wait for Aryan.
+- If any gate result looks decisive either way, notify Aryan immediately.
+- GPU spend so far today: 0.069 node-h.
 
 ## 1. The project in one paragraph
 
