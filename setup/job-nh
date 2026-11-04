@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# job-nh JOBID...: end state, elapsed and actual node-hours from sacct (squeue forgets finished jobs).
+# Node-hours: GPU jobs = elapsed_h * GPUs/4 (A100 node has 4); CPU jobs = elapsed_h * logical CPUs/256.
+for j in "$@"; do
+  sacct -j "$j" -X -n -P -o JobID,State,Elapsed,ElapsedRaw,AllocCPUS,AllocTRES | while IFS='|' read -r id st el raw cpus tres; do
+    g=$(grep -o 'gres/gpu=[0-9]*' <<<"$tres" | cut -d= -f2)
+    if [[ -n "$g" ]]; then nh=$(awk -v r="$raw" -v g="$g" 'BEGIN{printf "%.4f", r/3600*g/4}')
+    else nh=$(awk -v r="$raw" -v c="$cpus" 'BEGIN{printf "%.4f", r/3600*c/256}'); fi
+    echo -e "$id\t$st\t$el\t$nh"
+  done
+done
