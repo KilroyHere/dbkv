@@ -15,7 +15,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | TPC-H data | SF1 + SF10 job 60823995 submitted Nov 4 (`slurm/tpch_gen.sbatch`, CPU shared, 16 cores, est. 0.03 node-h) → `$SCRATCH/dbkv/tpch/tpch_sf{1,10}.duckdb` |
 | G2 `EXPLAIN` calibration | Not started; waiting on TPC-H |
 | G3 memory limit | Not started |
-| Continuum code | Lookup in progress (→ §9) |
+| Continuum code | Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
 **Next:** generate TPC-H (CPU job), then G2 and G1 in parallel, then G3 on a GPU by Saturday.
 
@@ -145,6 +145,26 @@ Constraints:
 ## 9. Prior art to audit (open the papers yourself)
 
 Continuum (arXiv 2511.02230), InferCept, KVFlow, TOPAS (2608.25523), ThunderAgent, Autellix, NVIDIA Dynamo agent hints, arXiv 2601.12967, the Stony Brook project (github.com/Omkar38/agent-kv-retention), Leis et al. (cardinality errors), and Redshift short-query acceleration. For each, write a one-sentence delta in `docs/prior-art.md`.
+
+### 9a. Continuum: code located (Nov 4)
+
+- **Paper:** "Continuum: Efficient and Robust Multi-Turn LLM Agent Scheduling with KV Cache Time-to-Live", by Li, He, Mang, Zhang, Mao, Chen, Zhou, Zhang, Cheung, Gonzalez and Stoica. arXiv 2511.02230, v1 Nov 4 2025, with a v2. **The venue is unconfirmed.** Neither arXiv nor Semantic Scholar names one, so §1's "ICLR 2026" needs checking before it goes on the poster.
+- **Code:** https://github.com/Hanchenli/vllm-continuum, linked from the paper. It is Apache-2.0, a standalone repo rather than a GitHub fork, with 9 commits; the last code change was Jan 2026 ("fix dp bug").
+- **vLLM base: 0.10.2.** The paper uses that stable release for its baselines, plus LMCache 0.3.7 for CPU offload. The repo pins `torch==2.8.0`, which fits 0.10.2. This matches §4's plan for a separate `continuum-env`.
+- **How the timeout is chosen in the paper (§4.1–4.2, Eq. 1):** τ* = argmax_τ P(τ,f)·Benefit − Cost(τ). Here P(τ,f) is the empirical probability, from that tool's past durations, that a call to tool f returns within τ. Benefit is the re-prefill or reload cost avoided plus the queueing cost; Cost is the memory held for τ. So the timeout depends on the tool, never on the individual call. That per-tool rule is exactly the weakness D3 targets.
+- **What the released code does instead:** it is much simpler, and its README says it ships "without the estimation in the paper". `vllm/v1/core/estimate_with_func.py`, `ToolCallEstimator.set_up_pin`, uses a fixed `FIXED_THRESHOLD_CONTINUUM = 2.0` s (checked). If a tool's running-average duration is over 2 s, the cache is not pinned; otherwise it is pinned for 2 s. Tools are identified by the first word of the bash command. The rule is called from `_free_blocks` in `vllm/v1/core/sched/scheduler.py` and enabled with `--scheduling-policy continuum`. The scheduling is program-level FCFS, per `job_id`.
+- **What this means for D3:**
+  1. The baseline must be stated precisely. We should compare against both the released fixed-2-s rule and a faithful version of the paper's Eq. 1, implemented in the simulator and ideally in the fork.
+  2. The fork's tool key, the first bash word, would put every `execute_sql` call into one bucket. That works in our favour, but we should say so explicitly.
+  3. The hook point for our per-class hint is `set_up_pin`.
+
+### 9b. Stony Brook: github.com/Omkar38/agent-kv-retention (Nov 4)
+
+- **What it is:** the CSE 542 / AMS 560 Fall 2026 project. Created Sep 12, last pushed Nov 3, no licence.
+- **Approach:** a ski-rental framing of the keep-or-evict choice. The cost model is C(τ,T) = c·min(T,τ) + B·1[T>τ], with break-even at B/c. The policy uses λ-interpolated, learning-augmented TTLs (Purohit et al.). A gradient-boosted-tree predictor estimates P(T ≥ b) from tool identity, argument size, context length, turn index and session history.
+- **Data and engine:** TraceLab coding-agent traces (Claude Code and Codex, about 357k pauses). It is **simulator only** (`src/sim.py`); a vLLM/SGLang + LMCache prototype is listed only as a stretch goal.
+- **Findings:** any retention policy beats immediate eviction by 6–15×. Under load, always-retain + LRU wins. Prediction helped only after session-history features were added.
+- **Overlap with D3:** they share the problem and also position against Continuum's per-tool distribution. They differ in three ways: they have **no SQL and no `EXPLAIN` or plan features**, their workload is coding agents, and they have no real engine. Their finding that always-retain + LRU wins under load supports keeping our "always-keep + program FCFS" baseline (prediction 3). Cite their ski-rental cost model as related work. Section 8's fallback to a learned predictor would overlap with them, so prefer template history there.
 
 ## 10. Open questions for the advisor
 
