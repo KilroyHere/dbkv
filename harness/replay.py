@@ -47,11 +47,13 @@ async def metrics(http, url):
         return parse_metrics(await r.text())
 
 
-async def turn(http, a, prompt):
+async def turn(http, a, prompt, priority=None):
     """One streamed completion. Returns (ttft, e2e, output token ids, usage)."""
     body = {"model": a.model, "prompt": prompt, "max_tokens": a.out_tokens, "ignore_eos": True,
             "temperature": 0.0, "stream": True, "return_token_ids": True,
             "stream_options": {"include_usage": True}}
+    if priority is not None:  # needs `vllm serve --scheduling-policy priority`; lower runs first
+        body["priority"] = priority
     t0 = time.monotonic(); ttft = None; toks = []; usage = {}
     async with http.post(a.url + "/v1/completions", json=body) as r:
         if r.status != 200:
@@ -90,7 +92,8 @@ async def session(http, a, C, sid, t_start, t_end, turns_out, tasks_out, seed):
                 ctx += rng.integers(0, VOCAB, a.tool_in).tolist()
             new = c0 if k == 0 else a.tool_in
             t_req = time.monotonic()
-            ttft, e2e, out, usage = await turn(http, a, ctx)
+            prio = int((t_task - t_start) * 1000) if a.priority == "task_start" else None
+            ttft, e2e, out, usage = await turn(http, a, ctx, prio)
             cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
             ptoks = usage.get("prompt_tokens", len(ctx))
             turns_out.append(dict(
@@ -139,7 +142,7 @@ async def run_point(http, a, C, N, rep, outdir):
     recomp = [t["recomputed"] for t in res if t["recomputed"] is not None]
     d = {k: m1.get(k, 0) - m0.get(k, 0) for k in COUNTERS}
     summary = dict(
-        ctx=C, sessions=N, rep=rep, mix=a.mix, turns=a.turns, warmup=a.warmup, duration=a.duration,
+        ctx=C, sessions=N, rep=rep, mix=a.mix, priority=a.priority, turns=a.turns, warmup=a.warmup, duration=a.duration,
         wall=round(wall, 1), prefix_reset=reset_ok,
         resume_turns=len(res), resume_ttft_p50=pct([t["ttft"] for t in res], 50),
         resume_ttft_p95=pct([t["ttft"] for t in res], 95), turn_e2e_p95=pct([t["e2e"] for t in res], 95),
@@ -177,6 +180,8 @@ async def main():
     ap.add_argument("--out-tokens", type=int, default=150)
     ap.add_argument("--mix", default="redshift", choices=list(pauses.KNOTS))
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--priority", default="none", choices=["none", "task_start"],
+                    help="task_start: priority = task start (ms), i.e. program-level FCFS")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     points = [tuple(int(x) for x in p.split(":")) for p in a.points.split(",")]
