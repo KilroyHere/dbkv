@@ -67,6 +67,12 @@ ssh perlmutter dbkv-claude status       # optional health check
 
 The Perlmutter session doesn't need the certificate once it is running. You need it only to ssh in from the Mac.
 
+## Email notifications: `setup/dbkv-notify`
+
+`~/.local/bin/dbkv-notify` is a symlink to `setup/dbkv-notify`. Usage: `echo "body" | dbkv-notify "subject"`. It sends `[dbkv] subject` to **`ap2568@nersc.gov`**, which NERSC forwards to Aryan's registered email. Sends are logged in `$SCRATCH/dbkv/logs/notify.log`.
+
+**Only `nersc.gov` and `lbl.gov` recipients work from Perlmutter.** NERSC's mail relay bounces everything else (Gmail included), and `mail` still exits 0, so the log's "ok" means only that the relay took the message. When to send is set out in CLAUDE.md.
+
 ## Pushing to GitHub from Perlmutter
 
 A key was generated at `~/.ssh/dbkv_deploy` (public key comment `perlmutter-ap2568-dbkv-deploy`). Until it is added to the repo as a **write** deploy key, the Perlmutter Claude can commit but not push. To add it from the Mac:
@@ -101,3 +107,4 @@ A 1-GPU `shared` job costs ¼ node-hour per hour and gets 16 cores and 64 GB RAM
 | 2026-11-04 | Deploy key added on GitHub | ok: `git ls-remote origin` works over ssh |
 | 2026-11-04 | Added `dbkv-claude peek` and the job log `$SCRATCH/dbkv/logs/jobs.tsv` | ok |
 | 2026-11-04 | G3 smoke job 60824576 failed at engine start: FlashInfer's JIT lock under `~/.cache` got `flock` errno 524, because `$HOME` doesn't support locking from compute nodes | fixed in `setup/env.sh`: the FlashInfer, vLLM, Triton and Inductor caches now live under `$SCRATCH/cache`. Also measured: A100 `total_memory` = 42,404,806,656 B, and Qwen3-8B weights load as 15.27 GiB |
+| 2026-11-04 | `dbkv-notify` added (email). The first 4 mails to Gmail bounced: NERSC's relay only accepts nersc.gov/lbl.gov | `TO` changed to `ap2568@nersc.gov` (forwarded; Aryan tested it). One summary email re-sent |
