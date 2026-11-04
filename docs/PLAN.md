@@ -11,7 +11,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Model | Qwen3-8B in `$SCRATCH/huggingface` (16.4 GB, snapshot `b968826d`) |
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Works (deploy key) |
-| G1 oracle simulation | Simulator `sim/kvsim.py` + grid `sim/g1_grid.py` written. Prediction 2a pre-registered. **Grid job 60824732 queued** (CPU, est. 0.02 node-h); output → `results/g1_gap.csv` |
+| G1 oracle simulation | **v1 done** (job 60824732, 2 min, 0.004 node-h). **The oracle gap is about 0%:** always-keep + program FCFS is already as good as knowing each query's duration, so prediction 2a is not met. Taken at face value this is G1's kill condition. Before the Sat go/no-go: add a move-to-CPU action, refit costs from G3, and re-run (§2, 2a) |
 | TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 not generated yet |
 | G2 `EXPLAIN` calibration | Not started; TPC-H ready, so it is unblocked |
 | G3 memory limit | Prediction 1a pre-registered (~32 sessions at 4k, ~16 at 8k, ~6.5 at 20k). Kill line amended to be judged at 8k and 20k (§3). Replayer `harness/replay.py` written. The first smoke job, 60824576, failed at engine start (FlashInfer lock on `$HOME`; fixed in `env.sh`); **retry 60824741 queued** (0.125 node-h). Main sweep ~1.35 node-h, not submitted |
@@ -49,7 +49,17 @@ Write these on the midpoint slide before seeing results, then score them afterwa
     - **Where the numbers come from:** they are carried over from predictions 2–4, since the oracle must beat the per-call classes, which prediction 4 puts at 15–20%.
     - **Disclosure:** before this was written, a 1-seed, 5-minute debug grid (`--quick`) was run to check the code. Its p95s were too noisy to read, with gaps between −44% and +5% at 1 seed.
     - **Caveat:** the simulator's GPU cost parameters are back-of-envelope until G3 measures them, so G1 is re-run after G3.
-    - *Observed: —*
+    - *Observed, G1 v1 (job 60824732, 5 seeds × 20 min simulated; `results/g1_gap.csv`): **not met.***
+      - *Oracle gap with Redshift-like pauses at 1.2–3× the limit: about 0% in most cells, ranging from −1.3% to +13.0%.* The only cell ≥10% is 20k × 10 sessions (13%). Per-seed p95 spread is about ±10%, so that cell is likely noise.
+      - *Below the limit: within ±2%, except −6% at 20k × 4. This part matches the prediction.*
+      - *Best policy above the limit: almost always **always-keep with program-level FCFS** (or `ttl:30`). Knowing each call's duration adds almost nothing on top of it.*
+      - *Released Continuum (2 s) is 5–30% worse than always-keep. Stock LRU (request FCFS) is about 2× worse.*
+      - *The noisy `EXPLAIN` stand-in is 8–30% **worse** than the best per-tool policy, because noise makes it drop caches it should keep.*
+      - *Caveats:*
+        1. *v1 has no move-to-CPU action, only keep or drop.*
+        2. *Its cost parameters are guesses until G3.*
+        3. *About 23% of runs hit the deadlock breaker.*
+      - *Taken at face value, this meets G1's kill rule (<10% in every realistic setting). See the Status table.*
 3. Above the limit, with millisecond-only queries, always-keep plus program-level scheduling comes within 10% of Continuum.
 4. With Redshift-like query times (p50 0.1 s, p90 1.8 s, p99 26 s), per-call classes beat the per-tool timeout by 15–20% at p95.
 5. `EXPLAIN` puts queries in the correct one of three classes at least 70% of the time.
