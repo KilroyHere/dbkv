@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+data/
+traces/
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.jsonl
+slurm-*.out

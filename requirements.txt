@@ -1,0 +1,9 @@
+# CPU-side work: simulator, EXPLAIN calibration, proxy, replayer client.
+# Pin exact versions after the first install (pip freeze).
+duckdb
+sqlglot
+numpy
+pandas
+scipy
+matplotlib
+openai
