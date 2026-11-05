@@ -22,6 +22,12 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 **Tier 2 (Aryan, Nov 4), in order, whenever tier 1 is blocked on jobs:**
 1. Simulator fidelity: run the sim at G3's cells and report the p95 error per cell. Flag it if the error is large.
 2. Real-vLLM test of G1's headline: `--scheduling-policy priority` with priority = task start, against stock, at 8k and 20k above the limit (~0.5 node-h).
+   - **Done (job 60827432, 40GB, 0.22 node-h; `results/g3_priority_60827432.md`).** Program-level priority alone, with no KV pinning, beats stock vLLM.
+     - p95 task time: −3 to −4% at 8k, −22 to −23% at 20k.
+     - p50 task time: −8 to −35%.
+     - Tasks completed: 13–70% more.
+     - Resume p50: 1.6–3.1 s vs 6.9–16.9 s.
+     - Full prefix hits stay near 0% for both, because vLLM priority doesn't keep a paused agent's KV. So real always-keep needs pinning (the Continuum fork). The first attempt (60825810) landed on an 80GB node and is invalid.
 3. `docs/prior-art.md`: is always-keep + program FCFS already shown (Autellix, Continuum, …)? One line per paper.
    - **Done (Nov 4): partially shown.** InferCept, Continuum's ablation (Fig. 16), ThunderAgent and the Stony Brook repo each cover a piece. Nobody runs an always-keep arm or an oracle under program FCFS.
    - **Counter-evidence:** arXiv 2609.18849 finds keep-all predictors up to ~25% worse than LRU without program FCFS, and argues pre-call estimates can't know tool durations.
