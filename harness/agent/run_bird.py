@@ -17,10 +17,16 @@ import tools  # noqa: E402
 
 SYSTEM = """You are a careful data analyst answering a question about a SQLite database.
 Use the tools to inspect the database and test queries. Each reply may call tools.
+Never guess table or column names: check them with describe_table before using them, and quote names that
+contain spaces or symbols with backticks.
 When you are confident, reply WITHOUT a tool call. That final reply must contain exactly one SQLite query in a
 ```sql ... ``` block that computes the answer from the database itself: never copy numbers or values from
 earlier results into the query. Return only the columns the question asks for.
 You have at most {max_turns} replies in total."""
+
+
+NUDGE = ("Continue. Either call a tool, or, if you are done, reply with the final answer as one SQLite query "
+         "in a ```sql ... ``` block.")
 
 
 async def chat(http, a, messages):
@@ -71,9 +77,13 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
             messages.append({"role": "assistant", "content": msg.get("content") or "",
                              **({"tool_calls": calls} if calls else {})})
             if not calls:
-                answer = final_sql(msg.get("content")); status = "answered" if answer else "no_sql"
-                turns_out.append(row)
-                break
+                answer = final_sql(msg.get("content"))
+                if answer:
+                    status = "answered"; turns_out.append(row); break
+                # Prose without a tool call or a final SQL block (e.g. "I will now run..."): nudge and continue.
+                status = "no_sql"; row["nudged"] = True; turns_out.append(row)
+                messages.append({"role": "user", "content": NUDGE})
+                continue
             for c in calls:
                 name = c["function"]["name"]
                 try:

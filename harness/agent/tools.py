@@ -3,7 +3,7 @@
 Every call opens a read-only connection, enforces a wall-clock timeout via a progress handler, and
 returns (text_for_the_model, info) where info has rows, runtime_s and an error class.
 """
-import re, sqlite3, time
+import csv, functools, os, re, sqlite3, time
 
 TIMEOUT_S = 60.0
 MAX_ROWS = 40
@@ -70,6 +70,70 @@ def quote(name):
     return '"' + str(name).replace('"', '""') + '"'
 
 
+@functools.lru_cache(maxsize=None)
+def descriptions(db_path):
+    """BIRD database_description/*.csv -> {table_lower: {column_lower: text}} (empty if absent)."""
+    d = os.path.join(os.path.dirname(db_path), "database_description")
+    out = {}
+    if not os.path.isdir(d):
+        return out
+    for f in os.listdir(d):
+        if not f.lower().endswith(".csv"):
+            continue
+        cols = {}
+        try:
+            with open(os.path.join(d, f), encoding="utf-8-sig", errors="replace", newline="") as fh:
+                for r in csv.DictReader(fh):
+                    name = (r.get("original_column_name") or "").strip()
+                    if not name:
+                        continue
+                    desc = " ".join((r.get("column_description") or "").split())
+                    if desc.lower() == name.lower():
+                        desc = ""
+                    vals = " ".join((r.get("value_description") or "").replace("commonsense evidence:", "").split())
+                    text = desc + (f" (values: {vals[:150]})" if vals else "")
+                    cols[name.lower()] = text.strip()
+        except (OSError, csv.Error):
+            continue
+        out[os.path.splitext(f)[0].lower()] = cols
+    return out
+
+
+def tables_of(db_path):
+    con = connect(db_path)
+    try:
+        return [r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+    finally:
+        con.close()
+
+
+def columns_of(db_path, table):
+    con = connect(db_path)
+    try:
+        return [r[1] for r in con.execute(f"PRAGMA table_info({quote(table)})")]
+    finally:
+        con.close()
+
+
+def name_help(db_path, sql, err):
+    """For invented names: list the real tables, or the real columns of the tables the query uses."""
+    tabs = tables_of(db_path)
+    if err == "no_such_table":
+        return "Available tables: " + ", ".join(tabs)
+    used = []
+    try:
+        import sqlglot
+        from sqlglot import exp
+        used = [t.name for t in sqlglot.parse_one(sql, read="sqlite").find_all(exp.Table) if t.name]
+    except Exception:  # noqa: BLE001
+        pass
+    low = {t.lower(): t for t in tabs}
+    used = [low[u.lower()] for u in used if u.lower() in low] or tabs
+    parts = [f"{t}({', '.join(columns_of(db_path, t))})" for t in dict.fromkeys(used)]
+    return ("Columns of the tables in your query: " + "; ".join(parts))[:1500]
+
+
 def call(db_path, name, args):
     """Execute a tool. Returns (text, info)."""
     sql = None
@@ -86,11 +150,19 @@ def call(db_path, name, args):
         return f"Error: unknown tool {name}", dict(sql=None, runtime_s=0.0, error="unknown_tool", rows=0)
     cols, rows, rt, err, msg = run_query(db_path, sql, max_rows=MAX_ROWS)
     if err:
-        return f"Error ({err}): {msg}", dict(sql=sql, runtime_s=rt, error=err, rows=0)
+        hint = ""
+        if err in ("no_such_column", "no_such_table"):
+            hint = "\n" + name_help(db_path, sql, err)
+        return f"Error ({err}): {msg}{hint}", dict(sql=sql, runtime_s=rt, error=err, rows=0)
     if name == "describe_table":
         if not rows:
             return f"Error: no such table {args.get('table')}", dict(sql=sql, runtime_s=rt, error="no_such_table", rows=0)
-        text = "\n".join(f"{r[1]} {r[2]}{' PRIMARY KEY' if r[5] else ''}" for r in rows)
+        desc = descriptions(db_path).get(str(args.get("table", "")).lower(), {})
+        text = "\n".join(f"{r[1]} {r[2]}{' PRIMARY KEY' if r[5] else ''}"
+                         + (f" -- {desc[r[1].lower()]}" if desc.get(r[1].lower()) else "") for r in rows)
+        fks = run_query(db_path, f"PRAGMA foreign_key_list({quote(args.get('table', ''))})")[1]
+        if fks:
+            text += "\nForeign keys: " + ", ".join(f"{f[3]} -> {f[2]}.{f[4]}" for f in fks)
     else:
         text = fmt(cols, rows)
     return text, dict(sql=sql, runtime_s=rt, error=None, rows=len(rows))
