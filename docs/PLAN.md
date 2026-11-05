@@ -177,6 +177,10 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
 - *Rule:* let ratio = p95(`engine_overhead`) / p95(turn e2e) at each loaded point, and take the mean ratio over the 4 points.
   - **≥ 10%: pursue stateful sessions.**
   - **< 10%: drop.**
+- *Observed (job 60839032, A100-40GB; `results/d5_summary.md`):*
+  - *Ratio p95(engine_overhead) / p95(turn e2e) at the four loaded points: 20k × 4 = 2.3%, 20k × 8 = 1.4%, 8k × 12 = 2.8%, 8k × 20 = 1.0%. **Mean 1.9% → DROP stateful sessions.***
+  - *Breakdown of p95 resume TTFT above the limit (8k × 20): queue 4.4 s, prefill 1.2 s, rest 0.19 s. Queue wait and recompute dominate, not per-request overhead.*
+  - *Idle: `client_min` = 2.2 ms. Size-dependent `rest` is 6/10/23 ms at 4k/8k/20k. The tokenizer adds 6.6/13/59 ms.*
 
 **Test 2: real SQL-agent traces (BIRD dev, 150 tasks, seed 0, Qwen3-8B non-thinking, temperature 0, ≤ 15 turns).**
 - A *turn* is one LLM call. *Tools:* `list_tables`, `describe_table`, `sample_rows`, `execute_sql` on SQLite, with a 60 s timeout.
