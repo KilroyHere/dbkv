@@ -59,7 +59,7 @@ Scored under each brief separately and pooled over both (300 task-runs per arm):
 
 ## Observations
 
-### Stage 0 (Nov 5, 13:10 PT; `harness/expert/stage0.py`, `results/expert_stage0.md`)
+### Stage 0 (Nov 5, 12:53 PT; `harness/expert/stage0.py`, `results/expert_stage0.md`)
 
 Traces: Test 2 (60839247, c=1 and c=8, plain) and Test 3 (60839248, full and oracle briefs, c=8), agent before the
 Nov 5 fixes. One aside row: the main session's fixed agent (60872455, agent @ 779bcfd, plain, c=8), reported only.

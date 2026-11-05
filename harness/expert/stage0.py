@@ -46,7 +46,7 @@ def analyze(tasks, turns):
         ts.sort(key=lambda r: r["turn"])
         prev_failed = False
         for r in ts:
-            fcalls = [c for c in r.get("tools", []) if c["name"] == "execute_sql" and c.get("error")]
+            fcalls = [c for c in r.get("tools", []) if c["name"] in ("execute_sql", "write_sql") and c.get("error")]
             for c in fcalls:
                 fail_classes[c["error"]] += 1
                 if c["error"] in INVENTED:
