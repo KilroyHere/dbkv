@@ -54,7 +54,7 @@ async def turn(http, a, prompt, priority=None):
             "stream_options": {"include_usage": True}}
     if priority is not None:  # needs `vllm serve --scheduling-policy priority`; lower runs first
         body["priority"] = priority
-    t0 = time.monotonic(); ttft = None; toks = []; usage = {}
+    t0 = time.monotonic(); ttft = None; toks = []; usage = {}; srv = {}
     async with http.post(a.url + "/v1/completions", json=body) as r:
         if r.status != 200:
             raise RuntimeError(f"HTTP {r.status}: {(await r.text())[:300]}")
@@ -70,6 +70,9 @@ async def turn(http, a, prompt, priority=None):
                 toks.extend(ids)
             if msg.get("usage"):
                 usage = msg["usage"]
+            if msg.get("metrics"):  # vllm serve --enable-per-request-metrics
+                srv = msg["metrics"]
+    usage = dict(usage, _srv=srv)
     return ttft, time.monotonic() - t0, toks, usage
 
 
@@ -100,7 +103,9 @@ async def session(http, a, C, sid, t_start, t_end, turns_out, tasks_out, seed):
                 sid=sid, task=task, turn=k, t_req=round(t_req - t_start, 4), ctx=len(ctx),
                 pause=round(pause, 4), ttft=round(ttft or e2e, 4), e2e=round(e2e, 4),
                 prompt=ptoks, cached=cached, out=len(out),
-                recomputed=None if cached is None else max(0, ptoks - cached - new)))
+                recomputed=None if cached is None else max(0, ptoks - cached - new),
+                queue_ms=usage["_srv"].get("queue_time_ms"), engine_ttft_ms=usage["_srv"].get("time_to_first_token_ms"),
+                gen_ms=usage["_srv"].get("generation_time_ms")))
             ctx += out
         if done:
             tasks_out.append(dict(sid=sid, task=task, t_start=round(t_task - t_start, 4),
