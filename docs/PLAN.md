@@ -13,7 +13,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Push from Perlmutter | Works (deploy key) |
 | G1 oracle simulation | **v2a done** (60825742, 18 min, 0.074 CPU node-h; guessed costs). **No crossover:** the oracle gap is ≤ 10.6% at 1–30× pause scales, mostly about 0%, with a weak 5–10% bump at pause ÷ generation ≈ 0.5–2 (20k, high load). Offload is the real lever. `keep` needs the breaker in 30% of runs; breaker-free `keep-ac` matches it at 1×. Released Continuum is 13–54% worse than `keep-ac` at 1–3× and better at 10–30×. v2b (G3 costs + SF100 mix) still to come (§2, 2a) |
 | TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 **done** (60824952, 20 min, 0.041 node-h; `tpch_sf100.duckdb`, 27 GiB, row counts checked). TPC-DS SF1/SF10 done (60824954, 26 s): `$SCRATCH/dbkv/tpcds/` |
-| G2 `EXPLAIN` calibration | **SF10 run done** (60825416, 12 min, 0.024 node-h; `results/g2_sf10_summary.md`). **ρ = 0.82 on unseen templates (kill line 0.5).** `EXPLAIN` halves history's log-error on unseen templates (0.40 vs 0.79), but its 3-class accuracy is 92.4% against history's 93.5%, because 93.5% of queries are short and history, for an unseen template, means always guessing short. The script's literal accuracy reading says kill; the ρ and error readings say pass. **The kill rule doesn't say which metric decides it, so that's Aryan's call; not changed.** Most SF10 queries are <0.25 s, so SF100 is needed for real long queries |
+| G2 `EXPLAIN` calibration | **SF100: passes both kill tests** (60826277, 0.136 node-h). With balanced classes, unseen-template ρ = 0.83 and accuracy is 68.6% vs history's 43.4%. SF10 (60825416) was ambiguous: 93.5% of its queries are short, so class accuracy can't discriminate. SF100 query times are saved as the G1 v2b pause mix (`results/g2_sf100_pauses.txt`: p50 0.39 s, p90 2.8 s, p99 14 s) |
 | G3 memory limit | Smoke passed (60824741). **Main sweep:** 4k+8k (60825601) running on a 40GB node (KV pool 139,232 tokens). The 20k half (60825603) landed on an **A100-80GB** (KV 394,992 tokens), so it was cancelled; its data is kept as `runs/g3/main_80g_20k`, and it is **redone as 60827431** pinned to `gpu&hbm40g`. Early 4k/8k points: hits collapse at 4k × 40 (32%) and 8k × 20 (11%), close to the predicted limits of 32 and 16 |
 | Continuum code | **`$SCRATCH/envs/continuum-env` built** (60826039, precompiled 0.10.2 kernels, torch 2.8.0+cu128). Policies `fcfs`/`priority`/`continuum` import; no GPU test yet. Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
@@ -104,10 +104,15 @@ Write these on the midpoint slide before seeing results, then score them afterwa
 5. `EXPLAIN` puts queries in the correct one of three classes at least 70% of the time.
    - *Observed, G2 job 60825416 (TPC-H SF10 + TPC-DS SF10, 1,824 queries, 128 templates; `results/g2_sf10_summary.md`): leave-one-template-out 3-class accuracy is **92.4%**. That is nominally met, but uninformative: 93.5% of queries are "short" (<0.25 s), so always guessing short scores 93.5%.*
    - *Query times under the GPU-job caps: p50 24 ms, p90 0.18 s, p99 0.70 s, max 14 s. Only 2 of 1,824 are "long" (≥2 s).*
+   - *Observed, G2 job 60826277 (TPC-H SF100, 707 queries, 29 templates; budget-cut random subset; `results/g2_sf100_summary.md`): balanced classes (308 short, 307 medium, 92 long). Leave-one-template-out accuracy is **68.6%**, just under the predicted ≥70%.*
 6. `EXPLAIN` beats per-template history on templates it hasn't seen, but not on seen templates.
    - *Observed, job 60825416. The direction matches on rank and error, but not on class accuracy.*
      - *Unseen templates: `EXPLAIN` MAE is 0.40 log10 against 0.79 for history, which for an unseen template is the global median; Spearman ρ 0.82. But class accuracy is 92.4% against 93.5%.*
      - *Seen templates: history is better, MAE 0.30 vs 0.32 and accuracy 96.9% vs 94.8%.*
+   - *Observed, SF100 (job 60826277): **matches prediction 6.***
+     - *Unseen templates: `EXPLAIN` 68.6% vs history 43.4% accuracy; MAE 0.54 vs 1.08 log10; ρ 0.83.*
+     - *Seen templates: history is slightly better, 85.0% vs 82.3%, MAE 0.45 vs 0.43.*
+     - *`EXPLAIN` latency: mean 9 ms, p50 3 ms, p99 120 ms (the first call per query includes planning; a repeat call averages 2 ms).*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
