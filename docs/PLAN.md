@@ -14,7 +14,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | G1 oracle simulation | **v2a done** (60825742, 18 min, 0.074 CPU node-h; guessed costs). **No crossover:** the oracle gap is ≤ 10.6% at 1–30× pause scales, mostly about 0%, with a weak 5–10% bump at pause ÷ generation ≈ 0.5–2 (20k, high load). Offload is the real lever. `keep` needs the breaker in 30% of runs; breaker-free `keep-ac` matches it at 1×. Released Continuum is 13–54% worse than `keep-ac` at 1–3× and better at 10–30×. v2b (G3 costs + SF100 mix) still to come (§2, 2a) |
 | TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 **done** (60824952, 20 min, 0.041 node-h; `tpch_sf100.duckdb`, 27 GiB, row counts checked). TPC-DS SF1/SF10 done (60824954, 26 s): `$SCRATCH/dbkv/tpcds/` |
 | G2 `EXPLAIN` calibration | **SF10 run done** (60825416, 12 min, 0.024 node-h; `results/g2_sf10_summary.md`). **ρ = 0.82 on unseen templates (kill line 0.5).** `EXPLAIN` halves history's log-error on unseen templates (0.40 vs 0.79), but its 3-class accuracy is 92.4% against history's 93.5%, because 93.5% of queries are short and history, for an unseen template, means always guessing short. The script's literal accuracy reading says kill; the ρ and error readings say pass. **The kill rule doesn't say which metric decides it, so that's Aryan's call; not changed.** Most SF10 queries are <0.25 s, so SF100 is needed for real long queries |
-| G3 memory limit | **Smoke test passed** (job 60824741, 14 min, 0.059 node-h). vLLM's KV pool is 134,448 tokens, against 132,512 predicted. At 20k × 10 sessions (1.5× the limit) there are 0% cache hits and p50 resume is 11.7 s. Main sweep script being prepared (subagent), ~1.35 node-h |
+| G3 memory limit | Smoke passed (60824741). **Main sweep:** 4k+8k (60825601) running on a 40GB node (KV pool 139,232 tokens). The 20k half (60825603) landed on an **A100-80GB** (KV 394,992 tokens), so it was cancelled; its data is kept as `runs/g3/main_80g_20k`, and it is **redone as 60827431** pinned to `gpu&hbm40g`. Early 4k/8k points: hits collapse at 4k × 40 (32%) and 8k × 20 (11%), close to the predicted limits of 32 and 16 |
 | Continuum code | **`$SCRATCH/envs/continuum-env` built** (60826039, precompiled 0.10.2 kernels, torch 2.8.0+cu128). Policies `fcfs`/`priority`/`continuum` import; no GPU test yet. Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
 **Next (tier 1):** the G3 main sweep, once the subagent's script is reviewed; the G2 SF10 run, then SF100; G1 v2 (offload, a breaker visible per policy, pause scale 1/3/10/30× plus an SF100 mix, the oracle gap plotted against pause/generation time, Continuum as its own line); a draft of §8 options (a) crossover and (b) characterization pivot before Sat.
@@ -34,7 +34,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 - If total project GPU spend passes **5 node-h** before Sat, stop and notify Aryan.
 - Never change a gate, kill rule or prediction. Record observations only; changes wait for Aryan.
 - If any gate result looks decisive either way, notify Aryan immediately.
-- GPU spend (Nov 4): 0.069 used; queued or running: G3 sweep 4k+8k 60825601 (~0.90), G3 sweep 20k 60825603 (~0.47), priority test 60825810 (~0.28). **Committed ≈ 1.7 node-h (≈ 2.1 if every job hits its limit), against the 5 node-h stop line.** `iris` showed 7.7 charged as of this afternoon.
+- GPU spend (Nov 4): used 0.44 (smoke 0.069, 80GB-mislanded 20k sweep 0.207, 80GB priority test 0.165). Running or queued: 4k+8k sweep 60825601 (~0.9–1.1), 20k redo 60827431 (~0.47), priority redo 60827432 (~0.28). **Expected total ≈ 2.2 node-h (≈ 2.6 if every job hits its limit), against the 5 node-h stop line.**
 
 ## 1. The project in one paragraph
 
@@ -197,7 +197,7 @@ This is a solo project, so the budget is Aryan's per-user cap: **45 GPU node-hou
 
 | Phase | Node-hours |
 |---|---|
-| G3 memory limit | **Smoke test passed** (job 60824741, 14 min, 0.059 node-h). vLLM's KV pool is 134,448 tokens, against 132,512 predicted. At 20k × 10 sessions (1.5× the limit) there are 0% cache hits and p50 resume is 11.7 s. Main sweep script being prepared (subagent), ~1.35 node-h |
+| G3 memory limit | Smoke passed (60824741). **Main sweep:** 4k+8k (60825601) running on a 40GB node (KV pool 139,232 tokens). The 20k half (60825603) landed on an **A100-80GB** (KV 394,992 tokens), so it was cancelled; its data is kept as `runs/g3/main_80g_20k`, and it is **redone as 60827431** pinned to `gpu&hbm40g`. Early 4k/8k points: hits collapse at 4k × 40 (32%) and 8k × 20 (11%), close to the predicted limits of 32 and 16 |
 | Build and debug (`shared_interactive`, 1 GPU, 4 h sessions) | ~10–20 |
 | Main sweeps (~500 runs × 15–20 min) | ~30–45, less if the simulator prunes the grid |
 | Ablations | ~15–25 |

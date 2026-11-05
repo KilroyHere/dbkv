@@ -5,7 +5,8 @@
 # Cost: 1 GPU shared = 1/4 node-hour per hour; 30 min limit -> at most 0.125 node-hours.
 #SBATCH --job-name=g3_smoke
 #SBATCH --account=m4999_g
-#SBATCH --constraint=gpu
+# A100-40GB only: plain "gpu" can land on 80GB nodes (job 60825603 did).
+#SBATCH --constraint=gpu&hbm40g
 #SBATCH --qos=shared
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

@@ -187,7 +187,10 @@ async def main():
     points = [tuple(int(x) for x in p.split(":")) for p in a.points.split(",")]
     os.makedirs(a.out, exist_ok=True)
     timeout = aiohttp.ClientTimeout(total=None, sock_read=600)
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=0), timeout=timeout) as http:
+    # force_close: one connection per request. Reusing keep-alive connections raced with the server
+    # closing idle ones and killed a run on a 20k-token request body (job 60825810).
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=0, force_close=True),
+                                     timeout=timeout) as http:
         for rep in range(a.reps):
             for C, N in points:
                 s = await run_point(http, a, C, N, rep, os.path.join(a.out, f"c{C}_n{N}_r{rep}"))

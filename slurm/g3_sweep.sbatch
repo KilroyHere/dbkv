@@ -17,7 +17,8 @@
 # The script stops starting new points when less than ~8 min of the time limit remain.
 #SBATCH --job-name=g3_sweep
 #SBATCH --account=m4999_g
-#SBATCH --constraint=gpu
+# A100-40GB only: plain "gpu" can land on 80GB nodes (job 60825603 did).
+#SBATCH --constraint=gpu&hbm40g
 #SBATCH --qos=shared
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
