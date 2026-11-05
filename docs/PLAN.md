@@ -14,7 +14,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | G1 oracle simulation | **v2a done** (60825742, 18 min, 0.074 CPU node-h; guessed costs). **No crossover:** the oracle gap is ≤ 10.6% at 1–30× pause scales, mostly about 0%, with a weak 5–10% bump at pause ÷ generation ≈ 0.5–2 (20k, high load). Offload is the real lever. `keep` needs the breaker in 30% of runs; breaker-free `keep-ac` matches it at 1×. Released Continuum is 13–54% worse than `keep-ac` at 1–3× and better at 10–30×. v2b (G3 costs + SF100 mix) still to come (§2, 2a) |
 | TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 **done** (60824952, 20 min, 0.041 node-h; `tpch_sf100.duckdb`, 27 GiB, row counts checked). TPC-DS SF1/SF10 done (60824954, 26 s): `$SCRATCH/dbkv/tpcds/` |
 | G2 `EXPLAIN` calibration | **SF100: passes both kill tests** (60826277, 0.136 node-h). With balanced classes, unseen-template ρ = 0.83 and accuracy is 68.6% vs history's 43.4%. SF10 (60825416) was ambiguous: 93.5% of its queries are short, so class accuracy can't discriminate. SF100 query times are saved as the G1 v2b pause mix (`results/g2_sf100_pauses.txt`: p50 0.39 s, p90 2.8 s, p99 14 s) |
-| G3 memory limit | Smoke passed (60824741). **Main sweep:** 4k+8k (60825601) running on a 40GB node (KV pool 139,232 tokens). The 20k half (60825603) landed on an **A100-80GB** (KV 394,992 tokens), so it was cancelled; its data is kept as `runs/g3/main_80g_20k`, and it is **redone as 60827431** pinned to `gpu&hbm40g`. Early 4k/8k points: hits collapse at 4k × 40 (32%) and 8k × 20 (11%), close to the predicted limits of 32 and 16 |
+| G3 memory limit | **Done, not killed** (60825601 + 60827431, 1.26 GPU node-h, 40GB). The pool is 139,232 tokens. Caches collapse just past the predicted limits (32/16/6.5), from ~0.9 full hits to 0.1–0.34 at +25%. Recompute + re-queue is 24–75% of p95 per-turn latency above the limit. Prediction 1a met within grid resolution (`results/g3_summary.md`) |
 | Continuum code | **`$SCRATCH/envs/continuum-env` built** (60826039, precompiled 0.10.2 kernels, torch 2.8.0+cu128). Policies `fcfs`/`priority`/`continuum` import; no GPU test yet. Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
 **Next (tier 1):** the G3 main sweep, once the subagent's script is reviewed; the G2 SF10 run, then SF100; G1 v2 (offload, a breaker visible per policy, pause scale 1/3/10/30× plus an SF100 mix, the oracle gap plotted against pause/generation time, Continuum as its own line); a draft of §8 options (a) crossover and (b) characterization pivot before Sat.
@@ -77,6 +77,12 @@ Write these on the midpoint slide before seeing results, then score them afterwa
       - *8k × 16 and 20k × 6 (at the predicted limit): KV usage peaks at 97% and 94%. 89–90% of resumes are full prefix hits. p95 resume TTFT is 1.1–1.8 s, against 0.12 s at 4k × 8 with no memory pressure.*
       - *20k × 10 (1.5× the limit): **0% full hits**. Resume TTFT p50 is 11.7 s and p95 14.7 s. No task completed in the 2-minute window.*
       - *Session-level limits come from the main sweep.*
+    - *Observed, main sweep (jobs 60825601 4k+8k and 60827431 20k; A100-40GB, 2 reps × 24 cells, 300 s measured; `results/g3_summary.md`, `g3_table.csv`):*
+      - *KV pool 139,232 tokens: +5.1% vs predicted, +3.6% vs the smoke start.*
+      - *Full-hit fraction at the predicted limit: 4k × 32 = 0.94, 8k × 16 = 0.94, 20k × 6 = 0.90. One grid step above it collapses: 4k × 40 = 0.34, 8k × 20 = 0.10, 20k × 8 = 0.23.*
+      - *The cliff sits **between the predicted limit and +25%** at all three contexts.*
+      - *By the strict rule (≥0.95 full hits, 0 preemptions), the observed limits are one grid step below the prediction: 24 (4k), 12 (8k), 4 (20k). The true value lies between that and the predicted N.*
+      - *Reading: **met to within grid resolution**, with the strict cut-off slightly conservative.*
 2. Below the limit, all policies land within 5% of each other.
 2a. **G1 prediction** *(written Nov 4, before the G1 grid ran).*
     - **Values:** at 1.5–3× the memory limit with Redshift-like pauses, at 8k and 20k context, the oracle beats the best per-tool policy by **≥15% at p95** task time. "Best per-tool policy" means the best of stock LRU, always-keep, released Continuum (2 s), Continuum Eq. 1, and fixed timeouts from 0.1 to 30 s. Below the limit, and with millisecond-only pauses, the gap is **<5%**. An `EXPLAIN` stand-in with log-space noise σ = 1 recovers **about half** of the gap.
@@ -158,6 +164,11 @@ Write these on the midpoint slide before seeing results, then score them afterwa
   - **Total about 1.5 node-h (at most 1.9), compared with the ~6 budgeted.**
 - **Amendment, Nov 4, before any G3 data, because the 4k prediction sits on the line.** G3's kill line, "no limit below 32 sessions", is judged at **8k and 20k context**, not at 4k. That is because 4k's predicted limit (≈32, prediction 1a) falls right on the line, so the 4k result would trip it by construction. The 4k row is still measured and reported in full. The 20k row was added so the line can be judged at the project's premise context.
 
+**G3 result (Nov 4, observed; the rule is unchanged): not killed.**
+- (a) A limit exists well below 32 sessions. First failure: N = 16 at 8k and N = 6 at 20k (and N = 32 at 4k, reported only).
+- (b) Recompute + re-queue share of p95 per-turn latency, (resume TTFT p95(N) − baseline) / turn e2e p95(N): 0.24–0.70 at 8k for N ≥ 20, and 0.41–0.75 at 20k for N ≥ 8. Both are far above the 10% line.
+- Above the limit, turn e2e p95 inflates 2.3–8.5× relative to the at-limit point, and from 2× the limit (4k × 96, 8k × 48, 20k × 16 and above) no task completes inside the 5-minute window.
+
 Order: G1 first, because it bounds everything. G2 can run in parallel. G3 also supplies the measured prefill, reload and capacity numbers that replace the simulator's back-of-envelope parameters.
 
 ## 4. Implementation decisions (given ~4.5 weeks)
@@ -214,7 +225,7 @@ This is a solo project, so the budget is Aryan's per-user cap: **45 GPU node-hou
 
 | Phase | Node-hours |
 |---|---|
-| G3 memory limit | Smoke passed (60824741). **Main sweep:** 4k+8k (60825601) running on a 40GB node (KV pool 139,232 tokens). The 20k half (60825603) landed on an **A100-80GB** (KV 394,992 tokens), so it was cancelled; its data is kept as `runs/g3/main_80g_20k`, and it is **redone as 60827431** pinned to `gpu&hbm40g`. Early 4k/8k points: hits collapse at 4k × 40 (32%) and 8k × 20 (11%), close to the predicted limits of 32 and 16 |
+| G3 memory limit | **Done, not killed** (60825601 + 60827431, 1.26 GPU node-h, 40GB). The pool is 139,232 tokens. Caches collapse just past the predicted limits (32/16/6.5), from ~0.9 full hits to 0.1–0.34 at +25%. Recompute + re-queue is 24–75% of p95 per-turn latency above the limit. Prediction 1a met within grid resolution (`results/g3_summary.md`) |
 | Build and debug (`shared_interactive`, 1 GPU, 4 h sessions) | ~10–20 |
 | Main sweeps (~500 runs × 15–20 min) | ~30–45, less if the simulator prunes the grid |
 | Ablations | ~15–25 |
