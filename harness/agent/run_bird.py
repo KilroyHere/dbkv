@@ -29,8 +29,12 @@ NUDGE = ("Continue. Either call a tool, or, if you are done, reply with the fina
          "in a ```sql ... ``` block.")
 
 
-async def chat(http, a, messages):
-    body = {"model": a.model, "messages": messages, "tools": tools.TOOL_SPECS, "tool_choice": "auto",
+LAST = ("This is your last reply. Do not call tools. Give the final answer now as one SQLite query in a "
+        "```sql ... ``` block.")
+
+
+async def chat(http, a, messages, final=False):
+    body = {"model": a.model, "messages": messages, "tools": tools.TOOL_SPECS, "tool_choice": "none" if final else "auto",
             "temperature": 0.0, "max_tokens": a.max_tokens,
             "chat_template_kwargs": {"enable_thinking": False}}
     t0 = time.monotonic()
@@ -66,7 +70,10 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
         t_start = time.monotonic(); db_time = 0.0; last_ok_sql = None; answer = None; status = "max_turns"
         n = 0; prompt_tok = 0
         for n in range(1, a.max_turns + 1):
-            resp, dt, err = await chat(http, a, messages)
+            final = n == a.max_turns  # turn budget: the last reply must be the answer
+            if final:
+                messages.append({"role": "user", "content": LAST})
+            resp, dt, err = await chat(http, a, messages, final=final)
             if resp is None:
                 status = "llm_error:" + ("context" if "context" in (err or "").lower() or "maximum" in (err or "").lower() else "other")
                 turns_out.append(dict(qid=task["question_id"], turn=n, error=status, detail=err, client_s=round(dt, 4)))
