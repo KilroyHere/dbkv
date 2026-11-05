@@ -13,7 +13,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | D2 step 3: prior art (`docs/prior-art-brief.md`) | **Done** (24 papers). Nearest neighbour: Sophrosyne (2605.30862), which reports tokens and accuracy only. **Open:** turns and p50/p95 latency for full vs oracle vs automatic briefs in a multi-turn agent; behaviour under concurrency and KV pressure; a shared per-database brief cached as a prefix (TableCache is single-shot only). **Baselines to add:** embedding top-k, a one-call LLM selector |
 | D2 step 4: brief generator (`harness/brief/`) | **All built.** (iii) llm (60873675): table recall 91.4% / precision 90.5%, column recall 81.9% / precision 74.0%, build p50 0.46 s. **(i) compact, (ii) lexical (BM25) and oracle built for all 1,534 questions.** Mean size: (i) 2.9k chars, (ii) 0.8k, full 4.1k, oracle 0.26k. (ii) selection: table recall 95.3% (precision 70.5%), column recall 93.3% (precision 29.6%); all gold tables recalled for 90%. (iii) next. An embedding version of (ii) needs a model download (asked Aryan Nov 5). Variants (i) compact whole-DB, (ii) lexical/embedding-narrowed, (iii) cheap-model-narrowed; selection recall/precision vs gold |
 | D2 step 5: full dev set (1,534) comparison, concurrency 8 | **Done: YES by the §2c rules.** Compact (i) and lexical (ii) pass R1 and R2; llm (iii) fails R1 on p95. Accuracy: explore 43.5%, full 50.4%, compact 50.7%, lexical 49.3%, llm 49.0%, oracle 58.3%. Prompt tokens per task: full 34k, compact 15k, lexical 10k, oracle 8.5k. **Caveat:** turns fall only 17–28%, because the frozen agent still calls `describe_table` (it now has descriptions the briefs lack) |
-| D2 step 6: concurrency sweep 8/32/64, prefix caching on/off | Not started; pre-register predicted memory limits first |
+| D2 step 6: concurrency sweep 8/32/64, prefix caching on/off | **Pre-registered (§2d).** Arms: explore, full, lexical (best generated), oracle; 300-question subset; jobs submitted next |
 | D2 step 7: midpoint figures (by Sun Nov 8 evening) | Not started |
 | Repo | github.com/KilroyHere/dbkv, cloned at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` |
 | Python env | Built in `$SCRATCH/envs/dbkv-env`: Python 3.11.7, vLLM 0.33.0, PyTorch 2.14 (CUDA 13; driver 580 is OK), DuckDB 2.0 |
@@ -354,6 +354,40 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
     - *So every arm reduces turns by only 17–28%, against about 50% in Test 3 with the older agent. That limits what any brief can show.*
     - *Retention is measured against the oracle under the same agent, so the R1 test is internally consistent. But the absolute effect is small.*
   - *Selection quality (iii): table recall 91.4%, precision 90.5%; column recall 81.9%, precision 74.0%.*
+
+### 2d. D2 step 6: concurrency sweep, pre-registered Thu Nov 5 2026 ~14:15 PT, before any sweep run
+
+*Do not edit; add observations below. Seen before writing: the step-5 results (§2c), including the per-turn prompt sizes used below.*
+
+**Setup** (`slurm/d2_sweep.sbatch`; frozen agent `220001e`):
+- **Questions:** a fixed 300-question subset of BIRD dev (seed 0).
+- **Arms:** explore, full, **lexical**, oracle.
+  - *Why lexical:* "best generated brief" = the step-5 R1+R2 passer with the highest turn-reduction retention: lexical 0.666 vs compact 0.602. This selection rule is stated here, after step 5.
+- **Grid:** concurrency 8, 32, 64; **prefix caching on and off** (one server per setting). 4 × 3 × 2 = 24 cells.
+- **Prompt layout:** the frozen agent puts the fixed instructions (~500 tokens) first, then the brief, then the question. So the full brief is a per-database prefix shared by every agent on that database. Lexical and oracle briefs are per question.
+- **Recorded per cell:** turns, p50/p95 task time, accuracy, prompt tokens. Every 2 s: KV usage, running/waiting requests, prefix-cache queries/hits, preemptions.
+
+**Predicted memory limit per arm** (`harness/kv_limit.py`: pool 139,232 tokens). Each active agent holds its current context, the step-5 mean prompt + output per turn. Agents are almost always active (DB is ~4% of time).
+- **Prefix caching off:** limit = pool / context.
+- **Prefix caching on:** shared tokens are stored once. That's the instructions for everyone, plus for **full** one brief per database in flight (≤ 11 DBs × mean 4,059 tokens weighted by questions ≈ 45k). So limit = (pool − shared once) / (context − shared part).
+
+| arm | context per agent | limit, caching off | limit, caching on |
+|---|---|---|---|
+| explore | 1,434 | **97** | **~150** |
+| full | 5,613 | **25** | **~85** |
+| lexical | 1,722 | **81** | **~115** |
+| oracle | 1,638 | **85** | **~125** |
+
+**Predictions:**
+1. **Caching on:** no arm reaches its limit at c ≤ 64. Preemptions ≈ 0 in every cell, and KV usage < 90% (the full arm is highest).
+2. **Caching off:** **full exceeds its limit at c = 32 and c = 64.** Expect preemptions > 0, KV usage ≥ 98%, and full's p95 at c = 64 ≥ 2× its own caching-on p95. The other arms stay below their limits at c ≤ 64 (lexical and oracle are closest at 64).
+3. **The cost of turning caching off at c = 8** (p50 ratio off/on): full ≥ 1.3× (every turn re-prefills ~5.6k tokens); explore, lexical and oracle ≤ 1.15×.
+4. **Rule H, "does the step-5 answer hold as concurrency rises".** Holds iff, with **caching on at c = 32 and c = 64**, lexical keeps both latency parts of R1 against the same-concurrency explore and oracle cells:
+   - retention ≥ 0.60;
+   - p95 ≤ explore's p95.
+   
+   (Accuracy is not re-judged at n = 300, where its SE is about 2.9 points; it is reported.)
+   - *Extra, reported:* at c = 64 with caching off, full's p95 ≥ 1.5× lexical's.
 
 ## 3. Go/no-go tests: decide before building the engine change
 
