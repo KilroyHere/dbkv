@@ -1,0 +1,90 @@
+{
+ "db_share": 0.03579088857739482,
+ "slow_wrong": 0.8666666666666667,
+ "verdict_db": "DROP broker + result caching",
+ "verdict_d4": "PURSUE D4 early stopping",
+ "c1": {
+  "name": "concurrency 1",
+  "n": 150,
+  "acc": 0.34,
+  "acc_se": 0.038678159211627434,
+  "turns": 6.086666666666667,
+  "p50": 2.719,
+  "p95": 5.140349999999999,
+  "p90": 4.6991,
+  "slow_n": 15,
+  "slow_wrong": 0.8666666666666667,
+  "explore_turn_share": 0.5345016429353778,
+  "explore_call_share": 0.6387434554973822,
+  "prompt_tokens": 4655.106666666667,
+  "repeats": {
+   "exact_within": 0.007146940755443579,
+   "canon_within": 0.007146940755443579,
+   "exact_across": 0.05205121097675063,
+   "canon_across": 0.05205121097675063
+  },
+  "db_total_s": 16.16216,
+  "breakdown": {
+   "task_s": 451.58699999999993,
+   "db": 0.03579088857739482,
+   "queue": 1.846328231793042e-05,
+   "prefill": 0.03799300313728295,
+   "decode": 0.9033358716283416,
+   "llm_other": 0.021612623155545418,
+   "rest": 0.0012491502191172247
+  },
+  "tool_errors": {
+   "no_such_column": 71,
+   "no_such_table": 38,
+   "syntax": 12,
+   "operational": 4
+  },
+  "status": {
+   "answered": 107,
+   "no_sql": 42,
+   "max_turns": 1
+  }
+ },
+ "c8": {
+  "name": "concurrency 8",
+  "n": 150,
+  "acc": 0.36,
+  "acc_se": 0.03919183588453085,
+  "turns": 6.1,
+  "p50": 2.908,
+  "p95": 5.5028,
+  "p90": 5.0773,
+  "slow_n": 15,
+  "slow_wrong": 0.8666666666666667,
+  "explore_turn_share": 0.5355191256830601,
+  "explore_call_share": 0.639686684073107,
+  "prompt_tokens": 4679.906666666667,
+  "repeats": {
+   "exact_within": 0.024204997296331614,
+   "canon_within": 0.024204997296331614,
+   "exact_across": 0.16988973236549013,
+   "canon_across": 0.16988973236549013
+  },
+  "db_total_s": 5.233629999999998,
+  "breakdown": {
+   "task_s": 480.3859999999999,
+   "db": 0.01089519677925668,
+   "queue": 1.7077268094059142e-05,
+   "prefill": 0.055628983250443055,
+   "decode": 0.9087618918184253,
+   "llm_other": 0.023606894057396282,
+   "rest": 0.0010899568263846094
+  },
+  "tool_errors": {
+   "no_such_table": 37,
+   "no_such_column": 70,
+   "syntax": 11,
+   "operational": 4
+  },
+  "status": {
+   "answered": 107,
+   "no_sql": 42,
+   "max_turns": 1
+  }
+ }
+}

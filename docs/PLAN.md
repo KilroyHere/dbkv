@@ -196,6 +196,12 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
 - *Also reported:*
   - the share of DB time from repeated queries: exact text and sqlglot-canonical, within a task and across tasks on the same DB;
   - the share of turns spent exploring: `list_tables`, `describe_table`, `sample_rows`.
+- *Observed (job 60839247, A100-40GB; `results/t2_summary.md`):*
+  - *Accuracy 34.0% ± 3.9 at concurrency 1 and 36.0% ± 3.9 at concurrency 8. Mean 6.1 turns per task; task time p50 2.7 s, p95 5.1 s (concurrency 1).*
+  - ***Rule DB:** DB share = **3.6%** at concurrency 1 (1.1% at concurrency 8) → **DROP broker + result caching.** Decode takes 90% of task time, prefill 4%.*
+  - ***Rule D4:** **87%** (13 of 15) of tasks above p90 are wrong → **PURSUE D4.** Caveats: n = 15, so the SE is about 9 points; and the overall wrong rate is 66%, so the lift from slowness is about 21 points.*
+  - *Exploring: **53.5%** of turns, 64% of tool calls. DB time from repeated SQL: 0.7% within a task (exact = canonical), 5.2% across tasks on the same DB (17% at concurrency 8, where total DB time is small).*
+  - *Tool errors: 71 no-such-column, 38 no-such-table, 12 syntax. Task status: 107 answered with a final SQL, 42 with no ```sql``` block (graded on their last successful query), 1 hit the turn cap.*
 
 **Test 3: D2 pilot, schema brief (same 150 tasks, concurrency 8).**
 - *Arms:*
