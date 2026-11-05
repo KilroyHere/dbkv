@@ -1,0 +1,29 @@
+[
+ {
+  "db_id": "attributes+business+business_attributes+business_categories+",
+  "difficulty": "sql-length short",
+  "question_id": null,
+  "question": "Write down the ID, active status and city of the business which are in CA state.",
+  "evidence": "the ID refers to business_id; active status refers to active; active = 'true' means the business is still running; active = 'false' means the business is closed or not running now",
+  "schema": "CREATE TABLE \"Business\"\n(\n    business_id  INTEGER\n        constraint Business_pk\n            primary key,\n    active       TEXT,\n    city         TEXT,\n    state        TEXT,\n    stars        REAL,\n    review_count TEXT\n);",
+  "sql": "SELECT business_id, active, city\nFROM Business\nWHERE state = 'CA';"
+ },
+ {
+  "db_id": "city+competitor_event+event+games+games_city+games_competito",
+  "difficulty": "sql-length medium",
+  "question_id": null,
+  "question": "Which cities hosted at least 3 Olympic games?",
+  "evidence": "cities refer to city_name; hosted at least 3 Olympic games refers to COUNT(games_id) > = 3;",
+  "schema": "CREATE TABLE city\n(\n    id        INTEGER not null\n            primary key,\n    city_name TEXT default NULL\n);\nCREATE TABLE games_city\n(\n    games_id INTEGER default NULL,\n    city_id  INTEGER default NULL,\n    foreign key (city_id) references city(id),\n    foreign key (games_id) references games(id)\n);",
+  "sql": "SELECT c.city_name\nFROM city AS c\nJOIN games_city AS gc\n  ON c.id = gc.city_id\nGROUP BY c.id, c.city_name\nHAVING COUNT(gc.games_id) >= 3;"
+ },
+ {
+  "db_id": "relation+sales_in_weather+weather",
+  "difficulty": "sql-length long",
+  "question_id": null,
+  "question": "What is the ID of the item that sold the best on the day with the highest max temperature in store no.3 in 2012?",
+  "evidence": "highest max temperature refers to Max(tmax); store no.3 refers to store_nbr = 3; in 2012 refers to substring (date, 1, 4) = '2012'; sold the best refers to Max(units); ID of the item refers to item_nbr",
+  "schema": "CREATE TABLE relation\n(\n    store_nbr   INTEGER\n            primary key,\n    station_nbr INTEGER,\n    foreign key (store_nbr) references sales_in_weather(store_nbr),\n    foreign key (station_nbr) references weather(station_nbr)\n);\nCREATE TABLE sales_in_weather\n(\n    date      DATE,\n    store_nbr INTEGER,\n    item_nbr  INTEGER,\n    units     INTEGER,\n    primary key (store_nbr, date, item_nbr)\n);\nCREATE TABLE weather\n(\n    station_nbr INTEGER,\n    date        DATE,\n    tmax        INTEGER,\n    tmin        INTEGER,\n    tavg        INTEGER,\n    depart      INTEGER,\n    dewpoint    INTEGER,\n    wetbulb     INTEGER,\n    heat        INTEGER,\n    cool        INTEGER,\n    sunrise     TEXT,\n    sunset      TEXT,\n    codesum     TEXT,\n    snowfall    REAL,\n    preciptotal REAL,\n    stnpressure REAL,\n    sealevel    REAL,\n    resultspeed REAL,\n    resultdir   INTEGER,\n    avgspeed    REAL,\n    primary key (station_nbr, date)\n);",
+  "sql": "WITH joined_rows AS (\n    SELECT s.item_nbr, s.units, w.tmax\n    FROM sales_in_weather AS s\n    JOIN relation AS r\n        ON s.store_nbr = r.store_nbr\n    JOIN weather AS w\n        ON r.station_nbr = w.station_nbr\n    WHERE s.store_nbr = 3\n      AND s.date LIKE '%2012%'\n)\nSELECT item_nbr\nFROM joined_rows\nWHERE tmax = (SELECT MAX(tmax) FROM joined_rows)\nGROUP BY item_nbr\nORDER BY SUM(units) DESC\nLIMIT 1;"
+ }
+]

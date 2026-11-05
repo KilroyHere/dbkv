@@ -11,8 +11,8 @@ Code: `harness/expert/`. It imports `harness/agent/` and never edits it. GPU bud
 | Pre-registration (below) | Written Thu Nov 5 2026, 12:50 PT, before any Stage 0 analysis or Stage 1 data |
 | Stage 0 (traces, no GPU) | **Done: CONTINUE** by rule (repair 8.7% < 15%, but 90% of wrong answers are SQL-writing errors, almost all wrong logic). `results/expert_stage0.md` |
 | Stage 1.1 aLoRA support in installed vLLM | **Done: no.** vLLM 0.33.0 rejects aLoRA adapters explicitly; plain LoRA works. The adapter is plain LoRA anyway |
-| Stage 1.2 adapter training data / BIRD-dev contamination | **Docs say BIRD train only, no dev** (details below). Byte-level check needs the 86 MB train split: waiting for approval |
-| Stage 1.3 runs (a)/(b)/(d) × full/ideal brief | **Blocked: waiting for Aryan's approval** to download the adapter (175 MB) and its train split (86 MB). Estimate ≈ 0.15 GPU node-h (cap 0.25) |
+| Stage 1.2 adapter training data / BIRD-dev contamination | **Done: no BIRD-dev data found.** The docs say BIRD train only. The byte-level check of the 5,160-record split finds 0 dev DBs, 0 dev questions, 0 dev evidence or SQL matches (`results/expert_contam.md`) |
+| Stage 1.3 runs (a)/(b)/(d) × full/ideal brief | Approved by Aryan (download + run; merge main for the agent, agent @ 220001e). Submitting, ≈ 0.15 GPU node-h (cap 0.25) |
 
 ## Pre-registration (Thu Nov 5 2026, 12:50 PT; written before any data; never edit, only add observations below)
 
@@ -121,8 +121,17 @@ was installed.
   checkpoint-969 is the **last** step: 5,160/16 ≈ 323 steps × 3 epochs. So no checkpoint was picked on Mini-Dev.
   - Residual risk: indirect, through choices made by looking at Mini-Dev scores. There is no evidence of dev
     examples in the weights.
-- **Not yet verified byte-level.** That needs the 86 MB train split. The check: its `db_id`s ∩ the 11 BIRD-dev DBs,
-  and normalized question overlap with `dev.json` and with our 150 tasks.
+- **Byte-level check (Nov 5, after Aryan approved the download; `harness/expert/contam.py`, `results/expert_contam.md`).**
+  The adapter (sha256 `8940b165…`) and `dbdev4_train_5160.jsonl` (sha256 `1e46c2a8…`) both match the published
+  hashes. The split's records carry only `messages` (no `db_id`), so each record's database is identified by the set
+  of table names in its schema: 64 distinct schemas.
+  - **0 of the 11 BIRD-dev databases** has table-set Jaccard ≥ 0.5 with any SFT schema. The maximum is 0.29, for
+    debit_card_specializing.
+  - **0 normalized question matches** with the 1,534 dev questions, so 0 with our 150 tasks. 0 matches on long
+    evidence text, 0 on target SQL vs dev gold SQL.
+  - The system prompt is identical to `harness/expert/expert_system_prompt.txt` in 5,160 of 5,160 records.
+  - **Verdict: the adapter saw no BIRD-dev data.** The only residual is indirect: their prompt/tooling choices were
+    tuned on Mini-Dev.
 - **Its native prompt:** a fixed system prompt with one illustrative example, then a user message "Task / Evidence
   / Complete SQLite schema with column meanings", with the full DDL plus column meanings. Stage 1 (d) uses the same
   system prompt and layout.
@@ -140,6 +149,13 @@ was installed.
 - **(b) few-shot:** 3 fixed examples (question, evidence, the tables used, the gold SQL), the same for every task,
   drawn from **BIRD train** (the adapter's SFT split, so no dev data). Rule: seed 0, one each of simple / moderate /
   challenging, from 3 different DBs.
+  - *Amendment (Nov 5, before any Stage 1 data):* the split has no difficulty or `db_id` field. Difficulty is
+    therefore the SQL-length tertile (short / medium / long), and a DB is its schema's set of table names.
+  - The examples and their SQL are the teacher's execution-verified SQL, not BIRD gold. Chosen
+    (`harness/expert/fewshot.json`, ≈ 3.1k chars): a business-review DB (simple filter), an Olympics DB (join +
+    GROUP BY/HAVING), and sales_in_weather (3-way join, CTE, argmax).
+- **Agent commit (Aryan, Nov 5):** main merged into `expert` before the run, so `harness/agent` is @ **220001e** in
+  every arm. The agent is not yet frozen; `expert_config.json` in each run dir records the commit.
 - **(d) `write_sql(intent)`:** the agent describes what the query must compute. The adapter gets its native system
   prompt, then *Task* = question + "Analyst's intent: …", *Evidence* = the hint, and as schema **the same brief the
   agent has**. It answers at temperature 0 with ≤ 1024 tokens. Its `<sql>` is executed and returned to the agent

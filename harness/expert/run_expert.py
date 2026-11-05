@@ -113,7 +113,7 @@ def fewshot_block(path):
     ex = json.load(open(path))
     parts = ["Examples of correct answers on OTHER databases (never reuse their tables or columns):"]
     for i, e in enumerate(ex, 1):
-        parts.append(f"Example {i} (database {e['db_id']})\nQuestion: {e['question']}"
+        parts.append(f"Example {i} (a different database)\nQuestion: {e['question']}"
                      + (f"\nHint: {e['evidence']}" if e.get("evidence") else "")
                      + f"\nTables used:\n{e['schema']}\nFinal answer:\n```sql\n{e['sql']}\n```")
     return "\n\n" + "\n\n".join(parts)
