@@ -286,6 +286,51 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
 
 **Budget for the night:** GPU spend stops at 3.5 node-h (expected ~2.5). Every GPU job pinned to `gpu&hbm40g`, and every job has `--time`.
 
+### 2c. D2 step 5: pre-registered Thu Nov 5 2026, before any brief-arm agent run on the full dev set
+
+*Do not edit; add observations below. Data seen before writing this: the 150-task plain check (46.0%, 7.4 turns); Test 3 (150 tasks, old agent); brief sizes and the (ii) selection recall/precision on all 1,534 questions. No agent run with (i), (ii) or (iii), and no full-dev-set agent run, had happened.*
+
+**Setup.**
+- Frozen agent `220001e` on all **1,534** BIRD dev questions at **concurrency 8**, one vLLM server per job, A100-40GB. Prefix caching on (vLLM default). Speculative decoding off.
+- The brief goes in the system prompt after the fixed instructions, under "Database schema:".
+- **Arms:**
+  - **explore:** no brief.
+  - **full:** every table, every column, 3 sample values (`tools.schema`).
+  - **(i) compact:** `build.py --variant compact`.
+  - **(ii) lexical:** BM25 over names, descriptions and samples, narrowing (i).
+  - **(iii) llm:** one Qwen3-8B call per question narrows (i). Its wall time, measured at concurrency 8 in a separate pass on the same server, is added to task time.
+  - **oracle:** (i)'s format narrowed to the gold SQL's tables and columns.
+
+**Metrics** (per arm, over the 1,534 questions):
+- mean turns;
+- p50/p95 task time;
+- accuracy, with **paired** SE for differences between arms on the same questions: sd(diff)/√n;
+- mean prompt tokens per task, summed over its turns.
+
+**Definitions.**
+- *Turn-reduction retention* of arm X = (turns_explore − turns_X) / (turns_explore − turns_oracle).
+
+**Rules** (judged on point estimates; paired SEs reported alongside):
+- **R1, the brief removes exploration like the oracle.** A generated arm X ∈ {(i), (ii), (iii)} passes iff all three hold:
+  - retention(X) ≥ 0.60;
+  - acc_X − acc_full ≥ −2.0 points (paired);
+  - p95_X ≤ p95_explore.
+- **R2, without the full schema's prompt cost.** X passes iff mean prompt tokens/task of X ≤ 0.5 × full's.
+- **The research question's answer (at concurrency 8) is "yes" iff at least one generated arm passes both R1 and R2.** Each arm is reported separately. With three candidates, a pass by only one arm is reported with that caveat.
+
+**Predictions (point guesses):**
+
+| Arm | turns | accuracy | p95 | prompt tokens/task |
+|---|---|---|---|---|
+| explore | 7.4 | 46% | 13 s | — |
+| full | 3.5 | 50% | — | ~11k |
+| oracle | 3.1 | 58% | — | — |
+| (i) compact | 3.6 | 49% | — | ~7k |
+| (ii) lexical | 4.0 | 47% | — | ~4k |
+| (iii) llm | 3.6 | 50% | — | — (build p50 ~0.6 s) |
+
+- **(i) passes R1 but fails R2. (iii) passes both. (ii) fails R1 on accuracy** (its column recall is 93%).
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
