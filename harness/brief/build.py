@@ -84,8 +84,9 @@ def q(name):
     return f"`{name}`" if re.search(r"[^A-Za-z0-9_]", name) else name
 
 
-def render(db, sel=None, samples=2):
-    """Compact brief. sel: {table: set(columns lower)} or None for everything."""
+def render(db, sel=None, samples=2, desc_chars=0):
+    """Compact brief. sel: {table: set(columns lower)} or None for everything.
+    desc_chars > 0 appends BIRD's column description (and value notes), truncated to that many chars."""
     m = meta(db)
     lines = []
     tabs = [t for t in m["tables"] if sel is None or t in sel]
@@ -98,6 +99,10 @@ def render(db, sel=None, samples=2):
             v = m["samples"].get((t, c), [])[:samples]
             if v:
                 s += " e.g. " + ", ".join(repr(x) for x in v)
+            if desc_chars:
+                d = m["desc"].get(t.lower(), {}).get(c.lower(), "")
+                if d:
+                    s += " -- " + (d[:desc_chars].rstrip() + ("…" if len(d) > desc_chars else ""))
             parts.append(s)
         lines.append(f"{q(t)}: " + "; ".join(parts))
     js = [f"{q(a)}.{q(b)} = {q(c)}.{q(d)}" for a, b, c, d in m["joins"] if a in tabs and c in tabs]
@@ -120,7 +125,7 @@ def join_closure(db, chosen):
             while frontier and ts[j] not in prev:
                 nxt = []
                 for x in frontier:
-                    for y in adj[x]:
+                    for y in sorted(adj[x]):  # sorted: deterministic tie-breaks (set order varied by hash seed before Nov 5)
                         if y not in prev:
                             prev[y] = x; nxt.append(y)
                 frontier = nxt
@@ -196,11 +201,18 @@ def build(a, task):
         sel = None; brief = render(db)
     elif a.variant == "lexical":
         sel = lexical_select(db, task["question"], task.get("evidence", "")); brief = render(db, sel)
+    elif a.variant == "lexical_desc":  # (ii) + short BIRD column descriptions (Stage A, Nov 5)
+        if a.reuse:  # same selection as an existing brief file (e.g. the step-5 lexical briefs), re-rendered
+            r = a.reuse[task["question_id"]]
+            sel = {t: {c.lower() for tt, c in r["columns"] if tt == t} for t in r["tables"]}
+        else:
+            sel = lexical_select(db, task["question"], task.get("evidence", ""))
+        brief = render(db, sel, desc_chars=a.desc_chars)
     elif a.variant == "oracle":
         sel = join_closure(db, gold_select(db, task["SQL"])); brief = render(db, sel)
     else:
         raise ValueError(a.variant)
-    build_s = time.perf_counter() - t0 if a.variant == "lexical" else 0.0  # only per-question selection counts
+    build_s = time.perf_counter() - t0 if a.variant in ("lexical", "lexical_desc") else 0.0  # only per-question selection counts
     m = meta(db)
     tabs = list(sel) if sel is not None else m["tables"]
     cols = [[t, c] for t in tabs for c, _, pk in m["cols"][t]
@@ -233,12 +245,18 @@ def selection_metrics(rows, dev, bird):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bird", required=True)
-    ap.add_argument("--variant", required=True, choices=["full", "compact", "lexical", "oracle"])
+    ap.add_argument("--variant", required=True, choices=["full", "compact", "lexical", "lexical_desc", "oracle"])
+    ap.add_argument("--desc-chars", type=int, default=80)
+    ap.add_argument("--reuse", default="", help="take each question's selection from this brief JSONL")
     ap.add_argument("--out", required=True)
     ap.add_argument("--eval", action="store_true")
     a = ap.parse_args()
     dev = json.load(open(os.path.join(a.bird, "dev.json")))
+    a.reuse = {json.loads(l)["qid"]: json.loads(l) for l in open(a.reuse)} if a.reuse else None
     rows = [build(a, t) for t in dev]
+    if a.reuse:  # keep the reused selection's build time (the selection is what costs time)
+        for r in rows:
+            r["build_s"] = a.reuse[r["qid"]]["build_s"]
     with open(a.out, "w") as f:
         f.writelines(json.dumps(r) + "\n" for r in rows)
     print(f"{a.variant}: {len(rows)} briefs, mean {sum(len(r['brief']) for r in rows) / len(rows):.0f} chars, "
