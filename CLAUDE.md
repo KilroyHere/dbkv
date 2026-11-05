@@ -1,6 +1,10 @@
 # Notes for Claude working in this repo
 
-The project is **dbkv** (direction D3), Aryan Patel's CS 5470 project, done solo. When a SQL agent pauses on a query, the serving engine decides whether to keep, offload or drop that agent's KV cache, using the query optimizer's `EXPLAIN` estimate of how long the query will take.
+The project is **dbkv**, Aryan Patel's CS 5470 project, done solo. **The current direction (since Nov 5) is D2, schema briefs.** SQL agents spend about half their turns exploring an unfamiliar database. The question is whether a compact, automatically built schema brief can remove those turns as well as an oracle brief, without the full schema's prompt cost, and whether that holds as concurrency rises.
+- *The agent:* `harness/agent/`. *The brief generator:* `harness/brief/`.
+- *Closed:* D3 (the earlier direction: `EXPLAIN`-driven KV retention for paused agents) was closed by gate G1. Its results are the characterization section, PLAN §11.
+- *Speculative decoding:* off in every arm until Aryan says otherwise.
+- *Frozen agent:* once it's frozen, every comparison arm uses the frozen agent commit recorded in PLAN's Status table.
 
 - **Canonical plan:** [docs/PLAN.md](docs/PLAN.md). Read its **Status** section first. It is the handoff point between sessions, so update it whenever something finishes or a decision changes.
 - **Environment record:** [docs/PERLMUTTER.md](docs/PERLMUTTER.md). Log every setup change there, or better, fold it into `setup/perlmutter_setup.sh`.

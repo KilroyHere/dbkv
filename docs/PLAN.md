@@ -1,4 +1,6 @@
-# D3 plan: let the query optimizer decide which paused agents keep their KV cache
+# dbkv plan: D2, schema briefs that remove SQL agents' exploration turns
+
+*Direction since Thu Nov 5 2026: **D2** (§1). The earlier direction, **D3** (the optimizer's estimate decides which paused agents keep their KV cache), is **closed**: G1 showed its mechanism has nothing to act on. D3's gates and tests are kept as the characterization results (§11). Every pre-registered rule and observation below is kept exactly as written; superseded parts carry a dated note.*
 
 CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a direction. D3 comes from Aryan's own "Idea 1" (Consumer C) in the team's *Sources of Latency* doc. Written 2026-11-04. The first milestone is **Sat Nov 7** (all three gates), the midpoint is Mon Nov 9, and the poster is Mon Dec 7.
 
@@ -6,6 +8,13 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 
 | Item | State |
 |---|---|
+| **Direction** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
+| D2 step 2: fix and freeze agent | Not started. Overnight baseline (60839247): 28% of tasks gave no SQL, many invented table/column names; accuracy 34–36%. Target: no-SQL < 5%, BIRD column descriptions in `describe_table`, then freeze and record the commit |
+| D2 step 3: prior art (`docs/prior-art-brief.md`) | Not started |
+| D2 step 4: brief generator (`harness/brief/`) | Not started. Variants (i) compact whole-DB, (ii) lexical/embedding-narrowed, (iii) cheap-model-narrowed; selection recall/precision vs gold |
+| D2 step 5: full dev set (1,534) comparison, concurrency 8 | Not started; pre-register in §2c first |
+| D2 step 6: concurrency sweep 8/32/64, prefix caching on/off | Not started; pre-register predicted memory limits first |
+| D2 step 7: midpoint figures (by Sun Nov 8 evening) | Not started |
 | Repo | github.com/KilroyHere/dbkv, cloned at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` |
 | Python env | Built in `$SCRATCH/envs/dbkv-env`: Python 3.11.7, vLLM 0.33.0, PyTorch 2.14 (CUDA 13; driver 580 is OK), DuckDB 2.0 |
 | Model | Qwen3-8B in `$SCRATCH/huggingface` (16.4 GB, snapshot `b968826d`) |
@@ -16,6 +25,21 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | G2 `EXPLAIN` calibration | **SF100: passes both kill tests** (60826277, 0.136 node-h). With balanced classes, unseen-template ρ = 0.83 and accuracy is 68.6% vs history's 43.4%. SF10 (60825416) was ambiguous: 93.5% of its queries are short, so class accuracy can't discriminate. SF100 query times are saved as the G1 v2b pause mix (`results/g2_sf100_pauses.txt`: p50 0.39 s, p90 2.8 s, p99 14 s) |
 | G3 memory limit | **Done, not killed** (60825601 + 60827431, 1.26 GPU node-h, 40GB). The pool is 139,232 tokens. Caches collapse just past the predicted limits (32/16/6.5), from ~0.9 full hits to 0.1–0.34 at +25%. Recompute + re-queue is 24–75% of p95 per-turn latency above the limit. Prediction 1a met within grid resolution (`results/g3_summary.md`) |
 | Continuum code | **`$SCRATCH/envs/continuum-env` built** (60826039, precompiled 0.10.2 kernels, torch 2.8.0+cu128). Policies `fcfs`/`priority`/`continuum` import; no GPU test yet. Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
+
+**Next (D2, Nov 5), in order:**
+1. Docs (done, this commit).
+2. Fix the agent: no-SQL rate < 5%; BIRD column descriptions; then freeze. Email when frozen.
+3. `docs/prior-art-brief.md`.
+4. `harness/brief/`: briefs (i)–(iii), with selection recall and precision.
+5. Pre-register in §2c, then run 6 arms on all 1,534 dev questions at concurrency 8. Email when done.
+6. Pre-register memory limits, then sweep 8/32/64 with prefix caching on/off. Email when done.
+7. Midpoint figures by Sun evening.
+
+**Rules for D2:**
+- GPU expected ~5 node-h; **stop and notify if it passes 8**.
+- `gpu&hbm40g` and `--time` on every job; log everything in `jobs.tsv`.
+- **No speculative decoding** in any arm.
+- Never change a pre-registered rule after seeing data.
 
 **Overnight decision table (Nov 4–5; rules pre-registered in §2b at 21:49 PT before any data; nothing changed afterwards):**
 
@@ -46,7 +70,9 @@ Overnight GPU: 0.153 node-h (stop line 3.5). BIRD agent accuracy: 34–36% plain
   - offload (LMCache) measured;
   - the "Ask the Tool" counter-evidence (keep-all worse without program FCFS) tested directly.
 
-**Next (tier 1):** the G3 main sweep, once the subagent's script is reviewed; the G2 SF10 run, then SF100; G1 v2 (offload, a breaker visible per policy, pause scale 1/3/10/30× plus an SF100 mix, the oracle gap plotted against pause/generation time, Continuum as its own line); a draft of §8 options (a) crossover and (b) characterization pivot before Sat.
+*(Nov 4 work queue below: done, kept as a record.)*
+
+**Next (tier 1, Nov 4):** the G3 main sweep, once the subagent's script is reviewed; the G2 SF10 run, then SF100; G1 v2 (offload, a breaker visible per policy, pause scale 1/3/10/30× plus an SF100 mix, the oracle gap plotted against pause/generation time, Continuum as its own line); a draft of §8 options (a) crossover and (b) characterization pivot before Sat.
 
 **Tier 2 (Aryan, Nov 4), in order, whenever tier 1 is blocked on jobs:**
 1. Simulator fidelity: run the sim at G3's cells and report the p95 error per cell. Flag it if the error is large.
@@ -77,7 +103,22 @@ Overnight GPU: 0.153 node-h (stop line 3.5). BIRD agent accuracy: 34–36% plain
 - If any gate result looks decisive either way, notify Aryan immediately.
 - GPU spend (Nov 4): used 0.44 (smoke 0.069, 80GB-mislanded 20k sweep 0.207, 80GB priority test 0.165). Running or queued: 4k+8k sweep 60825601 (~0.9–1.1), 20k redo 60827431 (~0.47), priority redo 60827432 (~0.28). **Expected total ≈ 2.2 node-h (≈ 2.6 if every job hits its limit), against the 5 node-h stop line.**
 
-## 1. The project in one paragraph
+## 1. The project in one paragraph (D2, since Nov 5)
+
+A SQL agent answering a question about an unfamiliar database spends its first turns exploring it: listing tables, describing them, sampling rows. In our Qwen3-8B ReAct agent on BIRD dev (Test 2, overnight Nov 4), **53.5% of turns were exploration**. Each turn costs a full LLM call, and **decoding is 90% of task time** (the database is 3.6%). Giving the agent a schema brief up front removes most of those turns:
+- the full schema plus samples halves turns (6.1 → 3.1) and raises accuracy 36% → 43%;
+- an oracle brief that lists only the gold SQL's tables and columns gets 54% with a third of the prompt (Test 3).
+
+The full schema is expensive, though. It is 8.6k prompt tokens per task and has the worst p95, and prompt tokens become KV memory, which matters as concurrency rises (G3: the memory cliff is real and sharp).
+
+**Research question.** Can a compact, automatically built schema brief, built from the database alone with no gold information, match the oracle brief's turns, median and p95 latency, and accuracy, without the full schema's prompt cost? And does that hold as concurrency rises?
+
+**What we measure.**
+- Per arm: turns per task, p50/p95 task time, accuracy (paired standard errors against the other arms on the same questions), prompt tokens.
+- Selection recall and precision of each brief against the gold SQL's tables and columns.
+- In the concurrency sweep (8/32/64 agents, prefix caching on/off, brief first so agents on one database share it): KV usage, preemptions, prefix-cache hits.
+
+## 1-old. The D3 project paragraph (superseded Nov 5 by §1; kept as written)
 
 Many SQL agents share one A100-40GB. Each agent alternates between an LLM turn and a SQL query. While it waits on the query, its KV cache (about 2.9 GB for a 20K-token Qwen3-8B context) sits idle on the GPU. Above roughly 6–8 such agents, the engine has to choose, for each paused agent, whether to **keep** the cache, **move** it to CPU memory, or **drop** it. The best existing system, Continuum (ICLR 2026), keeps it for a timeout learned from that tool's past durations. That fails for SQL, because one `execute_sql` tool covers both 5 ms lookups and 30 s scans. D3 asks the database for its plan estimate (`EXPLAIN`, a few ms) before running each query. It turns that estimate into a coarse class (short, medium or long) and sends it to the engine as a hint. The engine then keeps, moves or drops the cache per class. Keeping or moving a cache never changes what the model writes, so the mechanism is lossless.
 
@@ -86,6 +127,8 @@ Many SQL agents share one A100-40GB. Each agent alternates between an LLM turn a
 **What we measure.** The main metric is p50 and p95 task completion time. Supporting metrics are the time from a tool's return to the agent's next token, split into queueing, prefill and reload; re-prefilled tokens; and GPU KV utilization.
 
 ## 2. Pre-registered predictions
+
+*Note (Nov 5): predictions 1–6, 2a and §2b were registered for D3 and the overnight tests. They stay exactly as written, with their observations. D2's predictions go in §2c, written before each D2 comparison runs.*
 
 Write these on the midpoint slide before seeing results, then score them afterwards.
 
@@ -245,6 +288,8 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
 
 ## 3. Go/no-go tests: decide before building the engine change
 
+*Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
+
 | Gate | Question | Where | Kill D3 (or its database signal) if |
 |---|---|---|---|
 | **G1. Oracle simulation** | If every query's duration were known exactly, how much faster would agents finish than with Continuum's timeout? | `sim/`, CPU | Perfect knowledge beats Continuum's best timeout by <10% at p95 in every realistic setting. Then no predictor can help. |
@@ -362,6 +407,13 @@ Constraints:
 
 ## 7. What the poster will claim
 
+*Superseded Nov 5. The D2 poster:*
+1. *Where SQL-agent task time goes: decode 90%, DB 3.6%, exploration 53.5% of turns. Plus the memory cliff and program FCFS (characterization, §11).*
+2. *Schema briefs: explore vs full schema vs generated briefs vs oracle, on turns, p50/p95 and accuracy.*
+3. *What happens to each arm as concurrency rises: prompt size → KV memory → limit, with and without shared-prefix caching.*
+
+*The D3 version below is kept as written.*
+
 1. A measured anatomy: where SQL-agent task time goes on an A100-40GB, and the memory limit.
 2. The state of the art's failure: per-tool history can't separate fast and slow SQL. This is the oracle gap.
 3. The mechanism: the optimizer estimate as a coarse class recovers Z% of that gap and beats template history on unseen queries.
@@ -377,6 +429,10 @@ Constraints:
 | G3 finds no limit below 32 sessions | D3 is dead on this hardware. Report the anatomy and switch |
 | The Continuum fork won't run by Nov 16 | Evaluate policies in the simulator, calibrated against measured stock-vLLM runs. Implement only one policy in the engine, or none, and say so on the poster |
 | Behind schedule on Nov 23 | Drop Postgres, TP=4 and the second model. Keep the three query-time mixes and the oracle |
+
+### 8b. Decision (Thu Nov 5, Aryan)
+
+The decision was made early, after the overnight tests. **D3's mechanism is closed. The new direction is D2, schema briefs.** D5 (stateful sessions) and the broker/result cache were dropped by their overnight rules. D4 (early stopping) passed its rule but is not the main direction. §8a's outcome (b), characterization, is kept as §11.
 
 ### 8a. Draft for the Sat Nov 7 decision (written Nov 4, before G1 v2 results; Aryan decides)
 
@@ -429,6 +485,21 @@ Continuum (arXiv 2511.02230), InferCept, KVFlow, TOPAS (2608.25523), ThunderAgen
 - **Data and engine:** TraceLab coding-agent traces (Claude Code and Codex, about 357k pauses). It is **simulator only** (`src/sim.py`); a vLLM/SGLang + LMCache prototype is listed only as a stretch goal.
 - **Findings:** any retention policy beats immediate eviction by 6–15×. Under load, always-retain + LRU wins. Prediction helped only after session-history features were added.
 - **Overlap with D3:** they share the problem and also position against Continuum's per-tool distribution. They differ in three ways: they have **no SQL and no `EXPLAIN` or plan features**, their workload is coding agents, and they have no real engine. Their finding that always-retain + LRU wins under load supports keeping our "always-keep + program FCFS" baseline (prediction 3). Cite their ski-rental cost model as related work. Section 8's fallback to a learned predictor would overlap with them, so prefer template history there.
+
+## 11. Characterization results (D3 phase, closed Nov 5)
+
+These measurements stand on their own and feed the D2 poster's anatomy panel. Details are in the Status rows, §2, §2b, §3 and `results/`.
+
+| Result | Evidence |
+|---|---|
+| The KV memory cliff for Qwen3-8B on an A100-40GB sits at the predicted limit (≈ 32 / 16 / 6.5 agents at 4k / 8k / 20k). Past it, cache hits fall from ~0.9 to 0.1–0.34 and resume latency goes from 0.1 s to over 10 s | G3, `results/g3_summary.md` |
+| Knowing each SQL call's duration buys ≤ 6% at realistic pause lengths; there is no crossover up to 30× | G1 v2b, `results/g1v2b_gap.csv` |
+| Program-level priority alone cuts p95 by 3–23% on real vLLM | `results/g3_priority_60827432.md` |
+| Released Continuum is 11–46% worse than always-keep + program FCFS at realistic pauses | G1 v2b |
+| `EXPLAIN` predicts SQL time: SF100 unseen-template ρ 0.83, accuracy 68.6% vs 43.4% | G2, `results/g2_sf100_summary.md` |
+| Resume overhead outside prefill is 1.9% of p95 per-turn latency | Test 1, `results/d5_summary.md` |
+| Real BIRD agent: decode 90%, DB 3.6%, explore 53.5% of turns, 87% of slow tasks wrong | Test 2, `results/t2_summary.md` |
+| A schema brief halves turns; the oracle brief reaches 54% vs 36% plain | Test 3, `results/t3_summary.md` |
 
 ## 10. Open questions for the advisor
 
