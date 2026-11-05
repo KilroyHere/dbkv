@@ -42,9 +42,15 @@ loop() {  # runs inside tmux; restarts claude if it exits
   rm -f "$STOP_FILE"; mkdir -p "$(dirname "$LOG")"; cd "$REPO" || exit 1
   while [[ ! -f "$STOP_FILE" ]]; do
     echo "$(date -Is) $(hostname) starting (try --continue)" >> "$LOG"
-    # --continue reattaches to the session recorded for this dir (only within ~4 h); otherwise start fresh
-    "$CLAUDE" remote-control --continue --name "$RC_NAME" \
-      || "$CLAUDE" remote-control --name "$RC_NAME"
+    # --continue reattaches to the session recorded for this dir (only within ~4 h); otherwise start fresh.
+    # Named sessions (worktrees) always start fresh: Claude treats worktrees of one repo as one project, so
+    # --continue there can grab the main session's conversation (seen Nov 5). Their memory is docs/<NAME>.md.
+    if [[ "$NAME" == "dbkv" ]]; then
+      "$CLAUDE" remote-control --continue --name "$RC_NAME" \
+        || "$CLAUDE" remote-control --name "$RC_NAME"
+    else
+      "$CLAUDE" remote-control --name "$RC_NAME"
+    fi
     echo "$(date -Is) claude exited with $?; restarting in 30 s" >> "$LOG"
     sleep 30
   done
