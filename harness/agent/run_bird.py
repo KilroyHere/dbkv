@@ -24,6 +24,12 @@ When you are confident, reply WITHOUT a tool call. That final reply must contain
 earlier results into the query. Return only the columns the question asks for.
 You have at most {max_turns} replies in total."""
 
+# Brief-aware variant (Nov 5): used only when a schema brief is in the prompt and --prompt brief_aware.
+BRIEF_RULE_OLD = """Never guess table or column names: check them with describe_table before using them, and quote names that
+contain spaces or symbols with backticks."""
+BRIEF_RULE_NEW = """A schema for this database is given below. Use it directly: call describe_table only for tables that are
+not in it. Never guess names that are not in the schema, and quote names that contain spaces or symbols with backticks."""
+
 
 NUDGE = ("Continue. Either call a tool, or, if you are done, reply with the final answer as one SQLite query "
          "in a ```sql ... ``` block.")
@@ -54,6 +60,9 @@ def final_sql(text):
 async def run_task(http, a, task, sem, turns_out, tasks_out):
     db = os.path.join(a.bird, "dev_databases", task["db_id"], task["db_id"] + ".sqlite")
     sys_prompt = SYSTEM.format(max_turns=a.max_turns)
+    if a.prompt == "brief_aware" and (a.briefs or a.brief in ("full", "oracle")):
+        assert BRIEF_RULE_OLD in sys_prompt
+        sys_prompt = sys_prompt.replace(BRIEF_RULE_OLD, BRIEF_RULE_NEW)
     if a.brief == "full":
         sys_prompt += "\n\nDatabase schema (with example values):\n" + await asyncio.to_thread(tools.schema, db)
     elif a.brief == "oracle":
@@ -138,6 +147,8 @@ async def main():
     ap.add_argument("--brief", default="none", choices=["none", "full", "oracle"])
     ap.add_argument("--briefs", default="", help="JSONL {qid, brief, build_s} from harness/brief (arm name = --brief-name)")
     ap.add_argument("--brief-name", default="")
+    ap.add_argument("--prompt", default="frozen", choices=["frozen", "brief_aware"],
+                    help="brief_aware: with a brief, use it and describe only tables not in it (explore unchanged)")
     ap.add_argument("--max-turns", type=int, default=15)
     ap.add_argument("--max-tokens", type=int, default=1024)
     ap.add_argument("--out", required=True)
