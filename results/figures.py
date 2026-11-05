@@ -170,13 +170,110 @@ def g3(run_dir):
     save(f, "fig_g3_limit.png", "G3: stock vLLM on one A100-40GB, Qwen3-8B, Redshift-like pauses; mean over reps. Predicted limits: 32 / 16 / 6.5 agents.")
 
 
+# ---------------- D2 ----------------
+D2_ARMS = [("explore", "explore (no brief)"), ("full", "full schema"), ("compact", "(i) compact"),
+           ("lexical", "(ii) lexical"), ("llm", "(iii) model pass"), ("oracle", "oracle brief")]
+D2_RUNS = {"explore": "60873599", "full": "60873599", "compact": "60873600", "lexical": "60873600",
+           "llm": "60873675", "oracle": "60873675"}
+
+
+def _d2_load(arm):
+    d = f"{SCR}/dbkv/runs/d2/{D2_RUNS[arm]}/{arm}"
+    T = [json.loads(l) for l in open(os.path.join(d, "tasks.jsonl"))]
+    U = [json.loads(l) for l in open(os.path.join(d, "turns.jsonl"))]
+    return T, U
+
+
+def d2_breakdown():
+    """Where a real SQL agent's task time goes (frozen agent, all 1,534 BIRD dev questions, concurrency 8)."""
+    parts = [("decode", "LLM decode", "#2a78d6"), ("prefill", "LLM prefill", "#eb6834"), ("queue", "LLM queue", "#1baf7a"),
+             ("db", "database (SQL tools)", "#eda100"), ("other", "other", "#e87ba4")]
+    rows = []
+    for arm, lab in [("explore", "explore (no brief)"), ("full", "full schema"), ("lexical", "(ii) lexical brief"), ("oracle", "oracle brief")]:
+        T, U = _d2_load(arm)
+        tot = sum(t["task_s"] for t in T)
+        q = sum((u.get("queue_ms") or 0) for u in U) / 1000; pf = sum((u.get("prefill_ms") or 0) for u in U) / 1000
+        dc = sum((u.get("decode_ms") or 0) for u in U) / 1000; db = sum(t["db_s"] for t in T)
+        rows.append((lab, dict(decode=dc / tot, prefill=pf / tot, queue=q / tot, db=db / tot, other=max(0.0, 1 - (dc + pf + q + db) / tot))))
+    f, (ax,) = fig(w=7.4, h=3.0)
+    y = np.arange(len(rows))[::-1]
+    left = np.zeros(len(rows))
+    for k, lab, c in parts:
+        v = np.array([r[1][k] for r in rows]) * 100
+        ax.barh(y, v, left=left, color=c, label=lab, edgecolor=SURFACE, linewidth=1.5, height=0.62)
+        for i, (vi, li) in enumerate(zip(v, left)):
+            if vi >= 6:
+                ax.text(li + vi / 2, y[i], f"{vi:.0f}%", ha="center", va="center", fontsize=8, color="#ffffff")
+        left += v
+    ax.set_yticks(y); ax.set_yticklabels([r[0] for r in rows]); ax.set_xlim(0, 100); ax.set_xlabel("share of total task time (%)")
+    style(ax, "A SQL agent's time is LLM decoding, not the database")
+    ax.legend(frameon=False, fontsize=7.5, labelcolor=INK, ncol=5, loc="upper center", bbox_to_anchor=(0.5, -0.28))
+    save(f, "fig_d2_time_breakdown.png", "Frozen ReAct agent (Qwen3-8B, A100-40GB), all 1,534 BIRD dev questions, 8 concurrent agents. Server-side per-request timings.")
+
+
+def d2_arms():
+    S = {}
+    for arm, _ in D2_ARMS:
+        T, _U = _d2_load(arm)
+        ts = np.array([t["task_s"] for t in T])
+        acc = np.mean([t["correct"] for t in T])
+        S[arm] = dict(turns=np.mean([t["turns"] for t in T]), p50=np.percentile(ts, 50), p95=np.percentile(ts, 95),
+                      acc=100 * acc, se=100 * np.sqrt(acc * (1 - acc) / len(T)), prompt=np.mean([t["prompt_tokens"] for t in T]) / 1000)
+    f, axes = fig(4, w=3.3, h=3.6)
+    labs = [l for _, l in D2_ARMS]; x = np.arange(len(D2_ARMS))
+    cols = ["#8a8985", "#eb6834", "#2a78d6", "#2a78d6", "#2a78d6", "#1baf7a"]
+    specs = [("turns", "turns per task", None), ("p95", "p95 task time (s)", "p50"), ("acc", "accuracy (%)", None),
+             ("prompt", "prompt tokens per task (k)", None)]
+    for ax, (k, title, k2) in zip(axes, specs):
+        v = [S[a][k] for a, _ in D2_ARMS]
+        ax.bar(x, v, color=cols, edgecolor=SURFACE, linewidth=1.5, width=0.7)
+        if k == "acc":
+            ax.errorbar(x, v, yerr=[S[a]["se"] for a, _ in D2_ARMS], fmt="none", ecolor=INK2, capsize=3, lw=1)
+        if k2:
+            ax.scatter(x, [S[a][k2] for a, _ in D2_ARMS], color=INK, s=14, zorder=3, label="p50")
+            ax.legend(frameon=False, fontsize=7.5, labelcolor=INK)
+        for i, vi in enumerate(v):
+            ax.text(i, vi, f"{vi:.1f}" if k != "prompt" else f"{vi:.0f}", ha="center", va="bottom", fontsize=7.5, color=INK)
+        ax.set_xticks(x); ax.set_xticklabels(labs, rotation=40, ha="right", fontsize=8)
+        style(ax, title)
+    save(f, "fig_d2_arms.png", "D2 step 5: frozen agent, all 1,534 BIRD dev questions, concurrency 8. Accuracy ± SE. Grey = no brief, orange = full schema, blue = generated briefs, green = oracle.")
+
+
+def d2_sweep(on_dir, off_dir):
+    import glob as _g
+    if not (_g.glob(os.path.join(on_dir, "*_c*", "tasks.jsonl")) or _g.glob(os.path.join(off_dir, "*_c*", "tasks.jsonl"))):
+        print("no sweep data yet"); return
+    arms = [("explore", "#8a8985"), ("full", "#eb6834"), ("lexical", "#2a78d6"), ("oracle", "#1baf7a")]
+    f, axes = fig(2, w=5.0, h=3.6)
+    for ax, (pc, d) in zip(axes, (("on", on_dir), ("off", off_dir))):
+        for arm, c in arms:
+            xs, ys = [], []
+            for conc in (8, 32, 64):
+                t = os.path.join(d, f"{arm}_c{conc}", "tasks.jsonl")
+                if os.path.exists(t):
+                    ts = [json.loads(l)["task_s"] for l in open(t)]
+                    xs.append(conc); ys.append(np.percentile(ts, 95))
+            if xs:
+                ax.plot(xs, ys, "-o", color=c, lw=2, ms=6, mec=SURFACE, mew=1.5, label=arm)
+        ax.set_xscale("log", base=2); ax.set_xticks([8, 32, 64]); ax.set_xticklabels(["8", "32", "64"])
+        ax.set_xlabel("concurrent agents"); ax.set_ylabel("p95 task time (s)")
+        style(ax, f"prefix caching {pc}")
+    axes[0].legend(frameon=False, fontsize=8, labelcolor=INK)
+    save(f, "fig_d2_sweep.png", "D2 step 6: 300 BIRD dev questions, frozen agent, A100-40GB.")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--g1", default=os.path.join(HERE, "g1v2b_gap.csv"))
     ap.add_argument("--g2-sf10", default=f"{SCR}/dbkv/runs/g2/60825416/results.csv")
     ap.add_argument("--g2-sf100", default=f"{SCR}/dbkv/runs/g2/60826277/results.csv")
     ap.add_argument("--g3", default=f"{SCR}/dbkv/runs/g3/main")
+    ap.add_argument("--sweep-on", default=f"{SCR}/dbkv/runs/d2sweep/60876091")
+    ap.add_argument("--sweep-off", default=f"{SCR}/dbkv/runs/d2sweep/60876092")
     a = ap.parse_args()
     g1(a.g1)
     g2(a.g2_sf10, a.g2_sf100, os.path.join(HERE, "g2_sf10_summary.json"), os.path.join(HERE, "g2_sf100_summary.json"))
     g3(a.g3)
+    d2_breakdown()
+    d2_arms()
+    d2_sweep(a.sweep_on, a.sweep_off)
