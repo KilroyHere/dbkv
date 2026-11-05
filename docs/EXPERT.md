@@ -12,7 +12,7 @@ Code: `harness/expert/`. It imports `harness/agent/` and never edits it. GPU bud
 | Stage 0 (traces, no GPU) | **Done: CONTINUE** by rule (repair 8.7% < 15%, but 90% of wrong answers are SQL-writing errors, almost all wrong logic). `results/expert_stage0.md` |
 | Stage 1.1 aLoRA support in installed vLLM | **Done: no.** vLLM 0.33.0 rejects aLoRA adapters explicitly; plain LoRA works. The adapter is plain LoRA anyway |
 | Stage 1.2 adapter training data / BIRD-dev contamination | **Done: no BIRD-dev data found.** The docs say BIRD train only. The byte-level check of the 5,160-record split finds 0 dev DBs, 0 dev questions, 0 dev evidence or SQL matches (`results/expert_contam.md`) |
-| Stage 1.3 runs (a)/(b)/(d) × full/ideal brief | Approved by Aryan (download + run; merge main for the agent, agent @ 220001e). Submitting, ≈ 0.15 GPU node-h (cap 0.25) |
+| Stage 1.3 runs (a)/(b)/(d) × full/ideal brief | **Done** (job 60873555, 23 min, **0.098 GPU node-h**). **Rule: CONTINUE** (only through turns: −13.8% vs (a), −30% vs (b)). **All 4 predictions not met**: Δacc +2.0 ± 2.6 pts, invented-name errors 3.3× *more*, turns −13.8%, p50 **+87%** (4.1 → 7.7 s). `results/expert_stage1.md` |
 
 ## Pre-registration (Thu Nov 5 2026, 12:50 PT; written before any data; never edit, only add observations below)
 
@@ -169,3 +169,53 @@ was installed.
     adapter prefill and LoRA decode.
   - Plus a 5-task smoke per arm, and ≈ 5 min for server start: ≈ 35 min wall, **≈ 0.15 node-h**.
   - `--time 1:00`, so the cap is 0.25 node-h, against the 2 node-h expert budget.
+
+### Stage 1.3 results (job 60873555, Nov 5 13:09–13:32 PT, A100-40GB, 0.098 node-h; agent @ 220001e; `results/expert_stage1.md`)
+
+KV pool with LoRA enabled: 129,952 tokens (vs 139,232 without). Smoke: 8 of 8 adapter calls returned SQL.
+
+| arm | brief | acc ± SE | Δ vs (a) ± paired SE | turns | repair | adapter calls | invented errs | output tok (agent + adapter) | prefill tok (agent + adapter) | p50 / p95 s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| (a) base | full | 46.7% ± 4.1 | — | 6.28 | 0.29 | — | 0.19 | 322 | 1568 | 4.32 / 13.1 |
+| (b) few-shot | full | 48.0% ± 4.1 | +1.3 ± 3.0 | 7.67 | 0.15 | — | 0.10 | 305 | 2016 | 5.69 / 14.5 |
+| (d) expert | full | 48.0% ± 4.1 | +1.3 ± 3.7 | 5.37 | 0.49 | 1.42 | 0.42 | 527 (244 + 283) | 3577 (1422 + 2155) | 8.58 / 34.3 |
+| (a) base | oracle | 53.3% ± 4.1 | — | 5.83 | 0.19 | — | 0.10 | 271 | 1796 | 4.01 / 13.0 |
+| (b) few-shot | oracle | 52.0% ± 4.1 | −1.3 ± 3.1 | 7.27 | 0.20 | — | 0.07 | 283 | 2223 | 4.75 / 12.4 |
+| (d) expert | oracle | 56.0% ± 4.1 | +2.7 ± 3.8 | 5.07 | 0.65 | 1.60 | 0.59 | 556 (249 + 307) | 1927 (1627 + 300) | 7.07 / 35.0 |
+
+(All columns are per task; prefill = prompt − cached tokens.)
+
+- **Wrong answers by type:** almost all are still wrong logic, (a) 73/65, (b) 68/67, (d) 74/63 (full/oracle). No SQL
+  0–1 and invented names 0 in the graded SQL. Other SQL errors 3–9.
+- **Predictions, (d) vs (a), pooled (per brief in `results/expert_stage1.md`):**
+  1. Δacc **+2.0 ± 2.6** pts (full +1.3, oracle +2.7): **not met**, and within noise.
+  2. Invented-name errors per task 0.15 → **0.50**, 3.3× more: **not met**.
+  3. Turns 6.05 → 5.22, **−13.8%** (full −14.5%, oracle −12.9%): **not met** (just short of 15%).
+  4. p50 4.13 → **7.70 s, +87%**: **not met**. p95 13 → 34–35 s.
+- **Stage 1 rule** (pooled): vs (a), Δacc +2.0 (< 5) but turns −13.8% (≥ 10%), so it beats (a). vs (b), Δacc +2.0 but
+  turns −30.1%, so it beats (b). **→ CONTINUE past Stage 1** by the rule as written. The rule has no latency or
+  accuracy-floor clause; it passes on agent turns alone, while task time nearly doubles.
+- **Why (d) is slow** (adapter call log):
+  - Each `write_sql` call is 3.4 s (oracle) to 4.5 s (full) at p50, with no queueing (queue p95 ≈ 0).
+  - The adapter emits its trained `<schema_linking>` + `<query_plan>` before the SQL: about 200 output tokens per
+    call, at about 50 tok/s.
+  - At 1.4–1.6 calls per task, that is +5–7 s per task. Agent turns saved: 0.8 per task × about 0.7 s.
+  - LoRA also slows the agent's own decode only slightly (49 vs 56 tok/s on full, 57 vs 59 on oracle).
+  - Without aLoRA (1.1), the adapter can't reuse the agent's KV either: 2.2k uncached prefill tokens per task on full.
+- **Why the adapter's SQL fails:** 34% (full) and 40% (oracle) of `write_sql` executions fail. Of those, no_such_column
+  is 63 of 73 and 88 of 97; the rest are syntax errors.
+  - Likely cause: the input is out of distribution. The adapter was trained on full DDL + BIRD column meanings, but
+    gets our brief format (`TABLE t / col type e.g. …`). The oracle brief additionally lists only the gold columns.
+    Example: it puts `Thrombosis` on the wrong table.
+  - These failures are what raises invented-name errors. The agent repairs them, so none reach the graded SQL.
+- **Side observations, not judged:**
+  - The base agent at 220001e takes about 2× the turns of Test 3's agent with the same briefs (6.3 vs 3.1 on full):
+    the no-guessing prompt makes it `describe_table` even when it has the brief. Accuracy is similar (46.7 vs 43.3
+    full, 53.3 vs 54.0 oracle).
+  - Few-shot (b) adds no accuracy and +20–25% turns.
+- **Reading:** as built, handing SQL writing to this adapter buys no measurable accuracy (+2 ± 2.6) and costs 87%
+  on p50. Before any Stage 2, the obvious fixes are:
+  1. give the adapter its native schema format (DDL + column meanings);
+  2. cut its output to `<sql>` only, or keep the plan but cap it;
+  3. remove the extra execution round trip.
+  These are design changes, so they need Aryan's call. The pre-registered rule says continue.
