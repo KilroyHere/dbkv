@@ -1,0 +1,190 @@
+{
+ "runs": {
+  "T2 plain c=1": {
+   "n_tasks": 150,
+   "acc": 0.34,
+   "n_turns": 913,
+   "failed_turns": 123,
+   "repair_turns": 123,
+   "union_turns": 235,
+   "failed_share": 0.13472070098576122,
+   "repair_share": 0.13472070098576122,
+   "union_share": 0.2573932092004381,
+   "decode_s": 407.93473626102787,
+   "decode_failed_share": 0.19906260559188976,
+   "decode_repair_share": 0.10095693702413482,
+   "decode_union_share": 0.2804076557097018,
+   "output_union_share": 0.2797784800225275,
+   "failed_sql_calls": {
+    "no_such_column": 71,
+    "no_such_table": 36,
+    "syntax": 12,
+    "operational": 4
+   },
+   "invented_calls": 107,
+   "invented_per_task": 0.7133333333333334,
+   "n_wrong": 99,
+   "wrong_types": {
+    "wrong_logic": 73,
+    "no_sql": 22,
+    "other_sql_error": 4
+   },
+   "wrong_logic_with_invented": 28,
+   "wrong_without_sql_block": 42,
+   "sql_writing_wrong": 77,
+   "sql_writing_share": 0.7777777777777778,
+   "dir": "/pscratch/sd/a/ap2568/dbkv/runs/agent/60839247/c1_none"
+  },
+  "T2/T3(a) plain c=8": {
+   "n_tasks": 150,
+   "acc": 0.36,
+   "n_turns": 915,
+   "failed_turns": 120,
+   "repair_turns": 120,
+   "union_turns": 230,
+   "failed_share": 0.13114754098360656,
+   "repair_share": 0.13114754098360656,
+   "union_share": 0.25136612021857924,
+   "decode_s": 436.556490163086,
+   "decode_failed_share": 0.19546231208272283,
+   "decode_repair_share": 0.09841963300975219,
+   "decode_union_share": 0.2757739201009645,
+   "output_union_share": 0.2758534762023424,
+   "failed_sql_calls": {
+    "no_such_column": 70,
+    "no_such_table": 35,
+    "syntax": 11,
+    "operational": 4
+   },
+   "invented_calls": 105,
+   "invented_per_task": 0.7,
+   "n_wrong": 96,
+   "wrong_types": {
+    "wrong_logic": 73,
+    "no_sql": 21,
+    "other_sql_error": 2
+   },
+   "wrong_logic_with_invented": 29,
+   "wrong_without_sql_block": 42,
+   "sql_writing_wrong": 75,
+   "sql_writing_share": 0.78125,
+   "dir": "/pscratch/sd/a/ap2568/dbkv/runs/agent/60839247/c8_none"
+  },
+  "T3(b) full c=8": {
+   "n_tasks": 150,
+   "acc": 0.43333333333333335,
+   "n_turns": 462,
+   "failed_turns": 45,
+   "repair_turns": 45,
+   "union_turns": 80,
+   "failed_share": 0.09740259740259741,
+   "repair_share": 0.09740259740259741,
+   "union_share": 0.17316017316017315,
+   "decode_s": 390.26041610061657,
+   "decode_failed_share": 0.1037205087945451,
+   "decode_repair_share": 0.07000678406788323,
+   "decode_union_share": 0.15071894603369246,
+   "output_union_share": 0.15113453856607503,
+   "failed_sql_calls": {
+    "no_such_column": 35,
+    "operational": 2,
+    "syntax": 8
+   },
+   "invented_calls": 35,
+   "invented_per_task": 0.23333333333333334,
+   "n_wrong": 85,
+   "wrong_types": {
+    "wrong_logic": 71,
+    "no_sql": 10,
+    "other_sql_error": 4
+   },
+   "wrong_logic_with_invented": 13,
+   "wrong_without_sql_block": 24,
+   "sql_writing_wrong": 75,
+   "sql_writing_share": 0.8823529411764706,
+   "dir": "/pscratch/sd/a/ap2568/dbkv/runs/agent/60839248/c8_full"
+  },
+  "T3(c) oracle c=8": {
+   "n_tasks": 150,
+   "acc": 0.54,
+   "n_turns": 444,
+   "failed_turns": 34,
+   "repair_turns": 34,
+   "union_turns": 62,
+   "failed_share": 0.07657657657657657,
+   "repair_share": 0.07657657657657657,
+   "union_share": 0.13963963963963963,
+   "decode_s": 350.23127245809883,
+   "decode_failed_share": 0.08240293630231363,
+   "decode_repair_share": 0.048896463955811174,
+   "decode_union_share": 0.11974474326653176,
+   "output_union_share": 0.11940557921265317,
+   "failed_sql_calls": {
+    "operational": 3,
+    "timeout": 3,
+    "syntax": 7,
+    "no_such_column": 21
+   },
+   "invented_calls": 21,
+   "invented_per_task": 0.14,
+   "n_wrong": 69,
+   "wrong_types": {
+    "wrong_logic": 61,
+    "other_sql_error": 2,
+    "no_sql": 6
+   },
+   "wrong_logic_with_invented": 7,
+   "wrong_without_sql_block": 16,
+   "sql_writing_wrong": 63,
+   "sql_writing_share": 0.9130434782608695,
+   "dir": "/pscratch/sd/a/ap2568/dbkv/runs/agent/60839248/c8_oracle"
+  },
+  "fixed agent 779bcfd plain c=8 (aside)": {
+   "n_tasks": 150,
+   "acc": 0.44666666666666666,
+   "n_turns": 1084,
+   "failed_turns": 44,
+   "repair_turns": 44,
+   "union_turns": 78,
+   "failed_share": 0.04059040590405904,
+   "repair_share": 0.04059040590405904,
+   "union_share": 0.07195571955719557,
+   "decode_s": 692.4486201013206,
+   "decode_failed_share": 0.05821106495576324,
+   "decode_repair_share": 0.062256410124822414,
+   "decode_union_share": 0.1075078408382129,
+   "output_union_share": 0.10578958896108637,
+   "failed_sql_calls": {
+    "no_such_column": 26,
+    "no_such_table": 2,
+    "syntax": 14,
+    "operational": 2
+   },
+   "invented_calls": 28,
+   "invented_per_task": 0.18666666666666668,
+   "n_wrong": 83,
+   "wrong_types": {
+    "wrong_logic": 75,
+    "no_sql": 5,
+    "other_sql_error": 3
+   },
+   "wrong_logic_with_invented": 11,
+   "wrong_without_sql_block": 11,
+   "sql_writing_wrong": 78,
+   "sql_writing_share": 0.9397590361445783,
+   "dir": "/pscratch/sd/a/ap2568/dbkv/runs/agent/60872455/c8_none"
+  }
+ },
+ "pooled": {
+  "repair_share": 0.08719646799116998,
+  "union_share": 0.15673289183222958,
+  "sql_writing_share": 0.8961038961038961,
+  "n_wrong": 154,
+  "wrong_types": {
+   "wrong_logic": 132,
+   "no_sql": 16,
+   "other_sql_error": 6
+  }
+ },
+ "stop": false
+}
