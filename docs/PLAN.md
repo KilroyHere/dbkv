@@ -355,7 +355,7 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
     - *Retention is measured against the oracle under the same agent, so the R1 test is internally consistent. But the absolute effect is small.*
   - *Selection quality (iii): table recall 91.4%, precision 90.5%; column recall 81.9%, precision 74.0%.*
 
-### 2d. D2 step 6: concurrency sweep, pre-registered Thu Nov 5 2026 ~14:15 PT, before any sweep run
+### 2d. D2 step 6: concurrency sweep, pre-registered Thu Nov 5 2026 14:03 PT (commit 41f8aec), before any sweep run
 
 *Do not edit; add observations below. Seen before writing: the step-5 results (§2c), including the per-turn prompt sizes used below.*
 
