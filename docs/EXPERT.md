@@ -109,9 +109,8 @@ was installed.
 
 - **Data:** `dbdev4_train_5160.jsonl`, 5,160 SFT records, 3 epochs, LoRA r 16, lr 5e-5. It comes from
   `teacher_generation/generate_teacher_data.py`, run on **BIRD train** (`train_filtered/train.jsonl`,
-  `train/train_databases`, `train_column_meaning.json`). A teacher model wrote the outputs: `gpt-5.6-terra`, high
-  reasoning. The script's default is the model; that was what they ran is stated in the README's "teacher prompt
-  comparison" row. The full output is `<schema_linking>`, `<query_plan>`, `<sql>`, kept only if it executes and
+  `train/train_databases`, `train_column_meaning.json`). A teacher model wrote the outputs: `gpt-5.6-terra` at high
+  reasoning, which is the script's default and the teacher named in their results table. The full output is `<schema_linking>`, `<query_plan>`, `<sql>`, kept only if it executes and
   matches gold.
 - **Split ("dbdev4"):** it is database-disjoint *within BIRD train*. Four train DBs are held out for an execution-dev
   set (hockey, mondial_geo, movie_3, student_loan), and works_cycles is dropped for length. "dev" here means their
