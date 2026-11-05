@@ -354,6 +354,10 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
     - *So every arm reduces turns by only 17–28%, against about 50% in Test 3 with the older agent. That limits what any brief can show.*
     - *Retention is measured against the oracle under the same agent, so the R1 test is internally consistent. But the absolute effect is small.*
   - *Selection quality (iii): table recall 91.4%, precision 90.5%; column recall 81.9%, precision 74.0%.*
+  - *Side effect: briefs bring more runaway SQL.*
+    - *60 s SQL timeouts: explore 2, full 6, oracle 9, lexical 20.*
+    - *Calls over 10 s are 94% of lexical's DB time, so the DB share of task time rises from ~3% (explore) to 15% (lexical).*
+    - *With a brief, the agent writes bigger joins without probing first. This feeds the p95 tail.*
 
 ### 2d. D2 step 6: concurrency sweep, pre-registered Thu Nov 5 2026 14:03 PT (commit 41f8aec), before any sweep run
 
