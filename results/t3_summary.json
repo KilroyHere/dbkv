@@ -1,0 +1,131 @@
+{
+ "verdict": "PURSUE D2",
+ "conditions": [
+  true,
+  1.0,
+  1.0
+ ],
+ "a": {
+  "name": "(a) plain exploration",
+  "n": 150,
+  "acc": 0.36,
+  "acc_se": 0.03919183588453085,
+  "turns": 6.1,
+  "p50": 2.908,
+  "p95": 5.5028,
+  "p90": 5.0773,
+  "slow_n": 15,
+  "slow_wrong": 0.8666666666666667,
+  "explore_turn_share": 0.5355191256830601,
+  "explore_call_share": 0.639686684073107,
+  "prompt_tokens": 4679.906666666667,
+  "repeats": {
+   "exact_within": 0.024204997296331614,
+   "canon_within": 0.024204997296331614,
+   "exact_across": 0.16988973236549013,
+   "canon_across": 0.16988973236549013
+  },
+  "db_total_s": 5.233629999999998,
+  "breakdown": {
+   "task_s": 480.3859999999999,
+   "db": 0.01089519677925668,
+   "queue": 1.7077268094059142e-05,
+   "prefill": 0.055628983250443055,
+   "decode": 0.9087618918184253,
+   "llm_other": 0.023606894057396282,
+   "rest": 0.0010899568263846094
+  },
+  "tool_errors": {
+   "no_such_table": 37,
+   "no_such_column": 70,
+   "syntax": 11,
+   "operational": 4
+  },
+  "status": {
+   "answered": 107,
+   "no_sql": 42,
+   "max_turns": 1
+  }
+ },
+ "b": {
+  "name": "(b) full schema + 3 samples",
+  "n": 150,
+  "acc": 0.43333333333333335,
+  "acc_se": 0.04046031434674028,
+  "turns": 3.08,
+  "p50": 2.484,
+  "p95": 6.8031999999999995,
+  "p90": 5.718599999999999,
+  "slow_n": 15,
+  "slow_wrong": 0.8,
+  "explore_turn_share": 0.2077922077922078,
+  "explore_call_share": 0.3076923076923077,
+  "prompt_tokens": 8631.56,
+  "repeats": {
+   "exact_within": 0.0003741068153891172,
+   "canon_within": 0.0003741068153891172,
+   "exact_across": 0.003190738304756444,
+   "canon_across": 0.003190738304756444
+  },
+  "db_total_s": 27.238209999999988,
+  "breakdown": {
+   "task_s": 462.837,
+   "db": 0.058850740109368964,
+   "queue": 1.0049101665146338e-05,
+   "prefill": 0.046106180733201524,
+   "decode": 0.8431919144334108,
+   "llm_other": 0.0171243578869088,
+   "rest": 0.03471675773544471
+  },
+  "tool_errors": {
+   "no_such_column": 35,
+   "operational": 2,
+   "syntax": 8
+  },
+  "status": {
+   "answered": 117,
+   "no_sql": 33
+  }
+ },
+ "c": {
+  "name": "(c) oracle brief (gold tables/columns)",
+  "n": 150,
+  "acc": 0.54,
+  "acc_se": 0.04069397989875161,
+  "turns": 2.96,
+  "p50": 2.1755,
+  "p95": 5.034249999999997,
+  "p90": 4.171099999999999,
+  "slow_n": 15,
+  "slow_wrong": 0.7333333333333334,
+  "explore_turn_share": 0.21171171171171171,
+  "explore_call_share": 0.3197278911564626,
+  "prompt_tokens": 2826.826666666667,
+  "repeats": {
+   "exact_within": 0.6505135327961975,
+   "canon_within": 0.6505135327961975,
+   "exact_across": 0.6508342364969649,
+   "canon_across": 0.6508342364969649
+  },
+  "db_total_s": 185.56068999999997,
+  "breakdown": {
+   "task_s": 563.617,
+   "db": 0.32923190748327325,
+   "queue": 7.445286503392679e-06,
+   "prefill": 0.037108716852492965,
+   "decode": 0.6213994121151399,
+   "llm_other": 0.011811261167789957,
+   "rest": 0.00044125709480046877
+  },
+  "tool_errors": {
+   "operational": 3,
+   "syntax": 7,
+   "no_such_column": 21,
+   "timeout": 3
+  },
+  "status": {
+   "answered": 122,
+   "no_sql": 28
+  }
+ }
+}

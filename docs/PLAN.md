@@ -17,6 +17,18 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | G3 memory limit | **Done, not killed** (60825601 + 60827431, 1.26 GPU node-h, 40GB). The pool is 139,232 tokens. Caches collapse just past the predicted limits (32/16/6.5), from ~0.9 full hits to 0.1–0.34 at +25%. Recompute + re-queue is 24–75% of p95 per-turn latency above the limit. Prediction 1a met within grid resolution (`results/g3_summary.md`) |
 | Continuum code | **`$SCRATCH/envs/continuum-env` built** (60826039, precompiled 0.10.2 kernels, torch 2.8.0+cu128). Policies `fcfs`/`priority`/`continuum` import; no GPU test yet. Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
+**Overnight decision table (Nov 4–5; rules pre-registered in §2b at 21:49 PT before any data; nothing changed afterwards):**
+
+| Test | Measured | Rule | Verdict |
+|---|---|---|---|
+| 1. D5 resume overhead (60839032) | engine non-prefill overhead = **1.9%** of p95 per-turn latency (mean of 4 loaded points; max 2.8%) | ≥ 10% pursue stateful sessions | **DROP** stateful sessions |
+| 2a. DB share (60839247, concurrency 1) | DB = **3.6%** of task time (decode 90%) | ≥ 40% brings back broker + result caching | **DROP** broker + caching |
+| 2b. D4 early stopping (60839247, concurrency 1) | **87%** (13 of 15) of tasks above p90 wrong (base wrong rate 66%) | ≥ 60% pursue, < 40% drop | **PURSUE** D4 (n = 15, caveat) |
+| 2c. Also reported | exploring 53.5% of turns; repeated SQL 0.7% (within task) / 5.2% (across tasks) of DB time | n/a | n/a |
+| 3. D2 schema brief (60839248 + 60839247) | (c) cuts turns 51.5% vs (a); explore share 53.6%; p50 (b) 2.48 s vs (c) 2.18 s (+13.8%) | pursue iff ≥ 30%, ≥ 25% cut, and (b) > 1.05 × (c) | **PURSUE** D2 (but (b) already gets the turn cut; the gap is prompt size; accuracy 36 / 43 / 54%) |
+
+Overnight GPU: 0.153 node-h (stop line 3.5). BIRD agent accuracy: 34–36% plain.
+
 **Go/no-go inputs for Sat Nov 7 (all observed by Nov 4, 7 pm; nothing in any gate or prediction changed; Aryan decides):**
 
 | Gate | Result | Kill rule at face value |
@@ -215,6 +227,19 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   3. p50 task time (b) > 1.05 × p50 (c).
   
   Otherwise **drop D2**. If (b) is within 5% of (c), or better, a schema brief is just a configuration.
+- *Observed (jobs 60839248 for (b) and (c); (a) = 60839247 at concurrency 8; `results/t3_summary.md`):*
+
+  | arm | turns/task | p50 / p95 task s | accuracy ± SE | prompt tokens/task |
+  |---|---|---|---|---|
+  | (a) plain | 6.10 | 2.91 / 5.50 | 36.0% ± 3.9 | 4,680 |
+  | (b) full schema | 3.08 | 2.48 / 6.80 | 43.3% ± 4.0 | 8,632 |
+  | (c) oracle brief | 2.96 | 2.18 / 5.03 | 54.0% ± 4.1 | 2,827 |
+
+  - *Conditions: (1) explore share (a) = 53.6% ≥ 30%: yes. (2) (c) cuts turns 51.5% vs (a), so ≤ 0.75 holds: yes. (3) p50 (b) 2.48 s > 1.05 × p50 (c) = 2.28 s: yes, (b) is 13.8% slower. **→ PURSUE D2.***
+  - *Caveats:*
+    - *(b) already gets almost all of the turn reduction (3.08 vs 2.96). The (b)–(c) latency gap comes from prompt size (8.6k vs 2.8k tokens), not fewer turns.*
+    - *(c)'s accuracy gain (+10.7 points over (b)) uses gold-SQL knowledge, so it is an upper bound on what a learned brief could reach.*
+    - *(b)'s p95 is the worst of the three.*
 
 **Budget for the night:** GPU spend stops at 3.5 node-h (expected ~2.5). Every GPU job pinned to `gpu&hbm40g`, and every job has `--time`.
 
