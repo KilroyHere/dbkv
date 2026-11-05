@@ -118,9 +118,18 @@ def main():
             for n in (ns[::2] if a.quick else ns):
                 cell = (mix, scale, ctx, n)
 
+                # Throughput validity: p95 is over *completed* tasks, so a policy that finishes few tasks
+                # (only the fast ones) looks deceptively good. A policy counts at this cell only if its mean
+                # completed-task count is >= 50% of the best policy's at the cell.
+                tmax = max((m(k, "tasks") for k in agg if k[:4] == cell), default=0.0)
+
+                def valid(key):
+                    t = m(key, "tasks")
+                    return t == t and t >= 0.5 * tmax
+
                 def best(group, offs=(0, 1)):
                     c = [(m(cell + (p, s, o), "task_p95"), f"{p}{'+off' if o else ''}")
-                         for p, s in group for o in offs if (cell + (p, s, o)) in agg]
+                         for p, s in group for o in offs if (cell + (p, s, o)) in agg and valid(cell + (p, s, o))]
                     c = [x for x in c if x[0] == x[0]]
                     return min(c) if c else (float("nan"), "-")
                 bt, bt_pol = best(PER_TOOL)
@@ -155,6 +164,7 @@ def main():
                             breaker_events_mean=round(float(np.mean([r["breaker_events"] for r in rs])), 1),
                             breaker_tokens_mean=int(np.mean([r["breaker_tokens"] for r in rs])),
                             seeds_starved=starved(cell + (p, s, o)),
+                            tasks_mean=round(m(cell + (p, s, o), "tasks"), 1),
                             task_p95=round(m(cell + (p, s, o), "task_p95"), 2)))
 
     for name, rows_ in (("gap.csv", gap_rows), ("breaker.csv", brk_rows)):

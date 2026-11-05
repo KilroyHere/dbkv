@@ -11,11 +11,28 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Model | Qwen3-8B in `$SCRATCH/huggingface` (16.4 GB, snapshot `b968826d`) |
 | Main Claude | Remote Control session `dbkv-perlmutter`, kept alive by `setup/dbkv-claude` |
 | Push from Perlmutter | Works (deploy key) |
-| G1 oracle simulation | **v2a done** (60825742, 18 min, 0.074 CPU node-h; guessed costs). **No crossover:** the oracle gap is ≤ 10.6% at 1–30× pause scales, mostly about 0%, with a weak 5–10% bump at pause ÷ generation ≈ 0.5–2 (20k, high load). Offload is the real lever. `keep` needs the breaker in 30% of runs; breaker-free `keep-ac` matches it at 1×. Released Continuum is 13–54% worse than `keep-ac` at 1–3× and better at 10–30×. v2b (G3 costs + SF100 mix) still to come (§2, 2a) |
+| G1 oracle simulation | **Done (v2b, measured costs).** The oracle gap is ≤ 5.9% at realistic pauses (Redshift 1×, SF100 measured, ms-only), with no crossover up to 30× pauses; isolated 20k cells reach 10–17%. **Kill condition met at face value**, prediction 2a not met. Sim fidelity vs real vLLM is ±14% above the limit. Offload is the real lever; released Continuum is 11–46% worse than always-keep + program FCFS at realistic pauses |
 | TPC-H data | **Done** (job 60823995, 21 s, ~0.001 node-h): `$SCRATCH/dbkv/tpch/tpch_sf1.duckdb` (268 MB, 6.0M lineitem rows) and `tpch_sf10.duckdb` (2.7 GB, 60.0M rows). SF100 **done** (60824952, 20 min, 0.041 node-h; `tpch_sf100.duckdb`, 27 GiB, row counts checked). TPC-DS SF1/SF10 done (60824954, 26 s): `$SCRATCH/dbkv/tpcds/` |
 | G2 `EXPLAIN` calibration | **SF100: passes both kill tests** (60826277, 0.136 node-h). With balanced classes, unseen-template ρ = 0.83 and accuracy is 68.6% vs history's 43.4%. SF10 (60825416) was ambiguous: 93.5% of its queries are short, so class accuracy can't discriminate. SF100 query times are saved as the G1 v2b pause mix (`results/g2_sf100_pauses.txt`: p50 0.39 s, p90 2.8 s, p99 14 s) |
 | G3 memory limit | **Done, not killed** (60825601 + 60827431, 1.26 GPU node-h, 40GB). The pool is 139,232 tokens. Caches collapse just past the predicted limits (32/16/6.5), from ~0.9 full hits to 0.1–0.34 at +25%. Recompute + re-queue is 24–75% of p95 per-turn latency above the limit. Prediction 1a met within grid resolution (`results/g3_summary.md`) |
 | Continuum code | **`$SCRATCH/envs/continuum-env` built** (60826039, precompiled 0.10.2 kernels, torch 2.8.0+cu128). Policies `fcfs`/`priority`/`continuum` import; no GPU test yet. Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
+
+**Go/no-go inputs for Sat Nov 7 (all observed by Nov 4, 7 pm; nothing in any gate or prediction changed; Aryan decides):**
+
+| Gate | Result | Kill rule at face value |
+|---|---|---|
+| G1 oracle sim | Knowing each query's duration buys ≤ 6% at p95 at realistic SQL pause lengths, and there is no crossover up to 30× | **Met: kill D3's mechanism** |
+| G2 `EXPLAIN` | SF100: unseen-template ρ 0.83, 3-class accuracy 68.6% vs history 43.4%. SF10 was ambiguous: 93.5% of queries are short | Not met: passes |
+| G3 memory limit | Cliff at the predicted limits; recompute + re-queue is 24–75% of p95 above them | Not met: passes |
+
+- **Taken together:** the memory problem is real (G3) and the optimizer signal works (G2), but the signal has nothing to act on (G1).
+  - Per-call retention decisions don't beat program-level FCFS plus offload at realistic SQL pause lengths.
+  - On real vLLM, program-level priority alone cuts p95 by 3–23% (tier-2 item 2).
+- **That matches §8a outcome (b), the characterization pivot.** Outcome (a) would need a crossover at realistic pauses, and none appeared.
+- **Open questions for (b):**
+  - always-keep with real pinning on vLLM (the Continuum fork, `continuum-env` built);
+  - offload (LMCache) measured;
+  - the "Ask the Tool" counter-evidence (keep-all worse without program FCFS) tested directly.
 
 **Next (tier 1):** the G3 main sweep, once the subagent's script is reviewed; the G2 SF10 run, then SF100; G1 v2 (offload, a breaker visible per policy, pause scale 1/3/10/30× plus an SF100 mix, the oracle gap plotted against pause/generation time, Continuum as its own line); a draft of §8 options (a) crossover and (b) characterization pivot before Sat.
 
@@ -117,6 +134,18 @@ Write these on the midpoint slide before seeing results, then score them afterwa
         - *At 10–30× pauses `keep-ac` is 10–40% worse, because admission control idles the GPU.*
       - *Starvation: oracle variants starve a seed in 166 of 9,600 runs. Pinning until return under strict program FCFS can block the queue head.*
       - *Released Continuum (`cont2`) vs `keep-ac`, median over cells above the limit: +13% at 1×, +54% at 3× (worse), −11% at 10× and −20% at 30× (better).*
+    - *Observed, G1 v2b (job 60832776; G3-refit costs, `results/g3_costs.json`; adds the TPC-H SF100 measured pause mix; `results/g1v2b_gap.csv`, `fig_g1_gap_vs_ratio.png`):*
+      - *Aggregation now also requires throughput validity: a policy counts at a cell only if it completes ≥ 50% of the best policy's tasks, because p95 over completed tasks flatters policies that finish only the fast ones. v2a was re-aggregated the same way (`results/g1v2_gap.csv`).*
+      - *Oracle gap above the limit (max / median, cells ≥ 10% out of 13):*
+        - *1×: 0.7 / 0.0, 0 of 13.*
+        - *3×: 10.7 / 0.0, 1 of 13.*
+        - *10×: 5.9 / 0.0, 0 of 13.*
+        - *30×: 16.5 / 0.0, 1 of 13.*
+        - ***SF100 mix: 5.9 / 0.0, 0 of 13** (r = 0.17–0.22, mean pause 1.5 s).*
+        - *ms-only: 0 / 0.*
+      - ***No crossover.** The only cells ≥ 10% are isolated 20k cells at 1.8–3× the limit.*
+      - *`cont2` vs `keep-ac`: +11% at 1×, +46% at 3×, −11% at 10×, −20% at 30×, and +33% on the SF100 mix. Breaker: `keep` 32% of runs, `keep-ac` 0%.*
+      - ***Prediction 2a not met.** At face value G1's kill rule (< 10% in every realistic setting) is met: the realistic settings are 1×, SF100 and ms-only, all with max ≤ 5.9%.*
 3. Above the limit, with millisecond-only queries, always-keep plus program-level scheduling comes within 10% of Continuum.
 4. With Redshift-like query times (p50 0.1 s, p90 1.8 s, p99 26 s), per-call classes beat the per-tool timeout by 15–20% at p95.
 5. `EXPLAIN` puts queries in the correct one of three classes at least 70% of the time.

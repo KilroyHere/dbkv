@@ -71,7 +71,7 @@ def g1(gap_csv):
     ax.set_ylabel("oracle advantage at p95 (%)")
     style(ax, "Knowing each query's duration barely helps (sim, ≥1.2× memory limit)")
     ax.legend(frameon=False, fontsize=8, labelcolor=INK)
-    save(f, "fig_g1_gap_vs_ratio.png", "G1 v2 simulator, 5 seeds; best per-call oracle vs best per-tool policy (incl. offload). Pause scales 1–30× Redshift-like.")
+    save(f, "fig_g1_gap_vs_ratio.png", "G1 v2b sim (G3-measured costs), 5 seeds. Pauses: Redshift-like ×1–30 and TPC-H SF100.")
 
     # (b) policy p95 at 1.5× limit, per pause scale, 8k
     pols = [("stock_p95", "stock vLLM"), ("cont2_p95", "released Continuum (2 s)"),
@@ -90,7 +90,7 @@ def g1(gap_csv):
     ax.set_ylabel("p95 task completion time (s)")
     style(ax, "Scheduling and offload matter; durations don't (8k, 24 agents = 1.5× limit)")
     ax.legend(frameon=False, fontsize=7.5, labelcolor=INK, ncol=2)
-    save(f, "fig_g1_policies.png", "G1 v2 simulator (guessed GPU costs until refit from G3). Stock vLLM = request FCFS + LRU.")
+    save(f, "fig_g1_policies.png", "G1 v2b simulator (G3-measured costs; sim within ±14% of real vLLM above the limit). Stock vLLM = request FCFS + LRU.")
 
 
 # ---------------- G2 ----------------
@@ -172,7 +172,7 @@ def g3(run_dir):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--g1", default=os.path.join(HERE, "g1v2_gap.csv"))
+    ap.add_argument("--g1", default=os.path.join(HERE, "g1v2b_gap.csv"))
     ap.add_argument("--g2-sf10", default=f"{SCR}/dbkv/runs/g2/60825416/results.csv")
     ap.add_argument("--g2-sf100", default=f"{SCR}/dbkv/runs/g2/60826277/results.csv")
     ap.add_argument("--g3", default=f"{SCR}/dbkv/runs/g3/main")
