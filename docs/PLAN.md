@@ -161,7 +161,7 @@ Write these on the midpoint slide before seeing results, then score them afterwa
      - *Seen templates: history is slightly better, 85.0% vs 82.3%, MAE 0.45 vs 0.43.*
      - *`EXPLAIN` latency: mean 9 ms, p50 3 ms, p99 120 ms (the first call per query includes planning; a repeat call averages 2 ms).*
 
-### 2b. Overnight decision tests: rules pre-registered Wed Nov 4 2026, ~19:30 PT, before any of their data
+### 2b. Overnight decision tests: rules pre-registered Wed Nov 4 2026, 21:49 PT (commit 42d56a3), before any of their data
 
 These were written before any Test 1–3 job ran or any BIRD data was downloaded. Do not edit them. Add observations below each rule only.
 
