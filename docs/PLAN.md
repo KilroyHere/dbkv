@@ -13,7 +13,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | D2 step 3: prior art (`docs/prior-art-brief.md`) | **Done** (24 papers). Nearest neighbour: Sophrosyne (2605.30862), which reports tokens and accuracy only. **Open:** turns and p50/p95 latency for full vs oracle vs automatic briefs in a multi-turn agent; behaviour under concurrency and KV pressure; a shared per-database brief cached as a prefix (TableCache is single-shot only). **Baselines to add:** embedding top-k, a one-call LLM selector |
 | D2 step 4: brief generator (`harness/brief/`) | **All built.** (iii) llm (60873675): table recall 91.4% / precision 90.5%, column recall 81.9% / precision 74.0%, build p50 0.46 s. **(i) compact, (ii) lexical (BM25) and oracle built for all 1,534 questions.** Mean size: (i) 2.9k chars, (ii) 0.8k, full 4.1k, oracle 0.26k. (ii) selection: table recall 95.3% (precision 70.5%), column recall 93.3% (precision 29.6%); all gold tables recalled for 90%. (iii) next. An embedding version of (ii) needs a model download (asked Aryan Nov 5). Variants (i) compact whole-DB, (ii) lexical/embedding-narrowed, (iii) cheap-model-narrowed; selection recall/precision vs gold |
 | D2 step 5: full dev set (1,534) comparison, concurrency 8 | **Done: YES by the §2c rules.** Compact (i) and lexical (ii) pass R1 and R2; llm (iii) fails R1 on p95. Accuracy: explore 43.5%, full 50.4%, compact 50.7%, lexical 49.3%, llm 49.0%, oracle 58.3%. Prompt tokens per task: full 34k, compact 15k, lexical 10k, oracle 8.5k. **Caveat:** turns fall only 17–28%, because the frozen agent still calls `describe_table` (it now has descriptions the briefs lack) |
-| D2 step 6: concurrency sweep 8/32/64, prefix caching on/off | **Pre-registered (§2d).** Arms: explore, full, lexical (best generated), oracle; 300-question subset; jobs submitted next |
+| D2 step 6: concurrency sweep 8/32/64, prefix caching on/off | **Done; rule H does NOT hold.** With caching on, lexical's p95 exceeds explore's at c = 32 (28.5 vs 25.4 s) and c = 64 (55.3 vs 45.8 s). Its per-question brief isn't shared and adds KV (58% vs 27% at c = 64). Caching off: full collapses (p95 246 s at 32, 441 s at 64), and every arm's p50 roughly doubles at c = 8. At c = 64 with caching on, full and lexical reach 100% KV. `results/d2_step6.md` |
 | D2 step 7: midpoint figures (by Sun Nov 8 evening) | Not started |
 | Repo | github.com/KilroyHere/dbkv, cloned at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` |
 | Python env | Built in `$SCRATCH/envs/dbkv-env`: Python 3.11.7, vLLM 0.33.0, PyTorch 2.14 (CUDA 13; driver 580 is OK), DuckDB 2.0 |
@@ -392,6 +392,18 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
    
    (Accuracy is not re-judged at n = 300, where its SE is about 2.9 points; it is reported.)
    - *Extra, reported:* at c = 64 with caching off, full's p95 ≥ 1.5× lexical's.
+
+- *Observed (jobs 60876091 caching on, 60876092 caching off; 0.63 GPU node-h; `results/d2_step6.md`):*
+  - *P1 (caching on: no preemptions, KV < 90%): **NOT MET.** At c = 64, full peaks at 100% KV with 3 preemptions, lexical at 100% with 1, oracle at 94%. Explore and everything at c ≤ 32 stay below. The predicted caching-on limits (~85–150 agents) were too high.*
+  - *P2 (caching off: full over its limit at 32 and 64, p95 ≥ 2× caching on): **MET.** Full at 32: KV max 98%, 1 preemption, p95 246 s (5.2× caching on). At 64: p95 441 s (4.4×). No other arm preempts.*
+  - *P3 (caching-off cost at c = 8: full ≥ 1.3×, others ≤ 1.15×): **NOT MET.** The p50 ratio off/on is full 3.61, explore 1.80, lexical 1.77, oracle 1.72. Turning prefix caching off nearly doubles every arm's median, because each turn re-prefills the whole conversation.*
+  - ***Rule H: DOES NOT HOLD.** With caching on, lexical keeps its turn advantage (retention 0.77 at c = 32, 0.70 at c = 64) but its p95 exceeds explore's: 28.5 vs 25.4 s at c = 32, 55.3 vs 45.8 s at c = 64.*
+    - *Not SQL timeouts: excluding tasks that hit one changes p95 by < 1 s.*
+    - *It tracks GPU memory contention. At c = 64, lexical's mean KV is 58% vs explore's 27%. Its prefix-cache hit rate is 79% vs 85%: per-question briefs aren't shared across agents, and the brief adds per-turn context.*
+    - *The oracle brief (smaller) stays below explore (40.6 s).*
+    - *So the c = 8 "yes" (§2c) does not carry to c ≥ 32 for the lexical brief.*
+  - *Extra: caching off at c = 64, full p95 / lexical p95 = 3.41 (≥ 1.5, as predicted).*
+  - *Accuracy at n = 300 is stable across concurrency per arm (explore 46%, full 47–48%, lexical 49–50%, oracle 54–56%).*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
