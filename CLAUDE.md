@@ -27,6 +27,20 @@ The project is **dbkv**, Aryan Patel's CS 5470 project, done solo. **The current
   - Send at most one email per event, and none for routine progress.
   - Sends are logged in `$SCRATCH/dbkv/logs/notify.log`.
 
+## Parallel sessions
+
+Two Claude sessions run on Perlmutter, both kept alive by `setup/dbkv-claude`:
+
+| Session | Start / peek | Works in | Remote Control name |
+|---|---|---|---|
+| Main (D2 schema briefs) | `dbkv-claude start` / `dbkv-claude peek` | this repo, branch `main` | `dbkv-perlmutter` |
+| Expert (SQL-expert adapter) | `dbkv-claude start expert` / `dbkv-claude peek expert` | the worktree `/global/cfs/cdirs/m4999/team19/ap2568/dbkv-expert`, branch `expert` | `dbkv-expert` |
+
+- **The expert session works only in its worktree,** and there only in `harness/expert/` and `docs/EXPERT.md`. It never edits `harness/agent/` or `docs/PLAN.md`. Shared code it needs is imported or copied, not changed.
+- **The main session doesn't edit** `harness/expert/` or `docs/EXPERT.md`.
+- **Both sessions append to the same `$SCRATCH/dbkv/logs/jobs.tsv`.** Start the purpose field with a tag, `[main]` or `[expert]`.
+- **GPU spend is checked across both sessions.** Before submitting a GPU job, sum the actual and estimated node-hours of *all* rows in `jobs.tsv` (both tags) and compare with `iris`. Any budget stop line Aryan sets applies to the project total, not to one session.
+
 ## Environment
 
 `source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh`. This sets up Python 3.11 with vLLM, DuckDB and the other tools in `$SCRATCH/envs/dbkv-env`, with `HF_HOME=$SCRATCH/huggingface`. The model is Qwen/Qwen3-8B. Continuum (vLLM 0.10.2) gets its own environment later.
