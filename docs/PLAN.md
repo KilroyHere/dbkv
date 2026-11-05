@@ -11,8 +11,8 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | **Direction** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | D2 step 2: fix and freeze agent | **Done, FROZEN at commit `220001e` (tag `agent-frozen-v1`).** Every later arm uses these agent files unchanged (`harness/agent/run_bird.py`, `tools.py`): Qwen3-8B non-thinking, temperature 0, max_tokens 1024, ≤ 15 turns. **Fixes:** (1) a prose reply with no tool call and no SQL gets a nudge instead of ending the task (the cause of the 28% no-SQL rate); (2) the last allowed turn forces the final SQL; (3) `describe_table` shows BIRD column descriptions, value notes and foreign keys; (4) an invented table or column returns the real names; (5) the prompt forbids guessing names. **Same 150 tasks, plain exploration, concurrency 8 (job 60872839): no-SQL 0% (was 28%), accuracy 46.0% ± 4.1 (was 36.0%), 7.4 turns per task, p50 4.1 s, p95 13.1 s.** Invented-name errors: 38 (was 109) |
 | D2 step 3: prior art (`docs/prior-art-brief.md`) | **Done** (24 papers). Nearest neighbour: Sophrosyne (2605.30862), which reports tokens and accuracy only. **Open:** turns and p50/p95 latency for full vs oracle vs automatic briefs in a multi-turn agent; behaviour under concurrency and KV pressure; a shared per-database brief cached as a prefix (TableCache is single-shot only). **Baselines to add:** embedding top-k, a one-call LLM selector |
-| D2 step 4: brief generator (`harness/brief/`) | **(i) compact, (ii) lexical (BM25) and oracle built for all 1,534 questions.** Mean size: (i) 2.9k chars, (ii) 0.8k, full 4.1k, oracle 0.26k. (ii) selection: table recall 95.3% (precision 70.5%), column recall 93.3% (precision 29.6%); all gold tables recalled for 90%. (iii) next. An embedding version of (ii) needs a model download (asked Aryan Nov 5). Variants (i) compact whole-DB, (ii) lexical/embedding-narrowed, (iii) cheap-model-narrowed; selection recall/precision vs gold |
-| D2 step 5: full dev set (1,534) comparison, concurrency 8 | Not started; pre-register in §2c first |
+| D2 step 4: brief generator (`harness/brief/`) | **All built.** (iii) llm (60873675): table recall 91.4% / precision 90.5%, column recall 81.9% / precision 74.0%, build p50 0.46 s. **(i) compact, (ii) lexical (BM25) and oracle built for all 1,534 questions.** Mean size: (i) 2.9k chars, (ii) 0.8k, full 4.1k, oracle 0.26k. (ii) selection: table recall 95.3% (precision 70.5%), column recall 93.3% (precision 29.6%); all gold tables recalled for 90%. (iii) next. An embedding version of (ii) needs a model download (asked Aryan Nov 5). Variants (i) compact whole-DB, (ii) lexical/embedding-narrowed, (iii) cheap-model-narrowed; selection recall/precision vs gold |
+| D2 step 5: full dev set (1,534) comparison, concurrency 8 | **Done: YES by the §2c rules.** Compact (i) and lexical (ii) pass R1 and R2; llm (iii) fails R1 on p95. Accuracy: explore 43.5%, full 50.4%, compact 50.7%, lexical 49.3%, llm 49.0%, oracle 58.3%. Prompt tokens per task: full 34k, compact 15k, lexical 10k, oracle 8.5k. **Caveat:** turns fall only 17–28%, because the frozen agent still calls `describe_table` (it now has descriptions the briefs lack) |
 | D2 step 6: concurrency sweep 8/32/64, prefix caching on/off | Not started; pre-register predicted memory limits first |
 | D2 step 7: midpoint figures (by Sun Nov 8 evening) | Not started |
 | Repo | github.com/KilroyHere/dbkv, cloned at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` |
@@ -330,6 +330,30 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
 | (iii) llm | 3.6 | 50% | — | — (build p50 ~0.6 s) |
 
 - **(i) passes R1 but fails R2. (iii) passes both. (ii) fails R1 on accuracy** (its column recall is 93%).
+- *Observed (jobs 60873599, 60873600, 60873675; all 1,534 questions, 0.51 GPU node-h; `results/d2_step5.md`):*
+
+  | arm | turns | p50 / p95 s | accuracy | Δ vs full (paired SE) | prompt tok/task | explore-turn share |
+  |---|---|---|---|---|---|---|
+  | explore | 7.45 | 4.04 / 12.51 | 43.5% | −6.9 (1.1) | 10,387 | 50.8% |
+  | full | 6.15 | 4.39 / 15.55 | 50.4% | — | 34,256 | 39.8% |
+  | (i) compact | 6.18 | 3.81 / 11.83 | 50.7% | +0.3 (0.9) | 15,409 | 43.5% |
+  | (ii) lexical | 6.04 | 3.76 / 12.08 | 49.3% | −1.1 (1.0) | 10,146 | 40.4% |
+  | (iii) llm | 5.97 | 4.16 / 13.72 | 49.0% | −1.4 (1.1) | 8,572 | 39.6% |
+  | oracle | 5.34 | 3.61 / 11.26 | 58.3% | +7.9 (1.1) | 8,504 | 40.4% |
+
+  - ***R1:*** *(i) PASS (retention 0.602, borderline). (ii) PASS (0.666). (iii) FAIL, on p95 only (13.72 s > 12.51 s; its build step adds p50 0.46 s, p95 0.87 s).*
+  - ***R2:*** *all three pass.*
+  - ***Answer at concurrency 8: YES** (compact, lexical).*
+  - *Predictions vs observed:*
+    - *Accuracy: predicted fairly well (full 50.4 vs 50; oracle 58.3 vs 58; compact 50.7 vs 49).*
+    - *Turns: predicted badly (full 6.15 vs 3.5; oracle 5.34 vs 3.1).*
+    - *"(ii) fails R1" was wrong: (ii) passes. "(iii) passes both" was wrong: (iii) fails R1 on p95.*
+  - *Why turns barely fell: with a brief, the frozen agent still calls `describe_table` 3,000–3,900 times per arm (explore: 4,000).*
+    - *Its prompt says "check names with describe_table before using them".*
+    - *`describe_table` now carries BIRD's column descriptions, which no brief includes.*
+    - *So every arm reduces turns by only 17–28%, against about 50% in Test 3 with the older agent. That limits what any brief can show.*
+    - *Retention is measured against the oracle under the same agent, so the R1 test is internally consistent. But the absolute effect is small.*
+  - *Selection quality (iii): table recall 91.4%, precision 90.5%; column recall 81.9%, precision 74.0%.*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
