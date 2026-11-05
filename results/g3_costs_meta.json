@@ -1,0 +1,13 @@
+{
+ "points": 42,
+ "decode_fit_points": 18,
+ "r2_decode": 0.945,
+ "prefill_tok_s": 11446,
+ "guessed": {
+  "t0": 0.012,
+  "c_pf": 0.0001,
+  "c_dec": 0.0002,
+  "c_att": 1e-07,
+  "kv_tokens": 134448
+ }
+}
