@@ -21,6 +21,12 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 
 **Tier 2 (Aryan, Nov 4), in order, whenever tier 1 is blocked on jobs:**
 1. Simulator fidelity: run the sim at G3's cells and report the p95 error per cell. Flag it if the error is large.
+   - **Done (Nov 4; `results/g1_fidelity.csv`; stock policy, G3-refit costs `results/g3_costs.json`, 5 seeds vs G3 reps).**
+     - *Task p95:* median |error| 8%, 17 of 20 cells within 25%. **Every above-limit cell is within ±14%.** The worst cells are at light load: 8k × 4 +39%, 20k × 4 +33%, 4k × 8 +28%.
+     - *Resume-TTFT p95:* the sim underestimates it below the limit by 40–85% (about 0.1 s vs 0.3–0.9 s; real per-request overheads aren't modeled). Above the limit it is within ±22%.
+     - *Verdict:* not bad enough to undermine G1, which compares policies above the limit. Don't quote the sim's absolute resume latency below the limit.
+   - *Refit costs (decode R² 0.945, 42 points): t0 11.6 ms, prefill 11.4k tok/s, c_dec 0.072 ms/seq, c_att 8.1e-8 s/token, KV pool 139,232. These are close to the v2a guesses except c_dec (0.2 → 0.07 ms).*
+   - *G1 v2b (refit costs + SF100 pause mix) submitted as job 60832776.*
 2. Real-vLLM test of G1's headline: `--scheduling-policy priority` with priority = task start, against stock, at 8k and 20k above the limit (~0.5 node-h).
    - **Done (job 60827432, 40GB, 0.22 node-h; `results/g3_priority_60827432.md`).** Program-level priority alone, with no KV pinning, beats stock vLLM.
      - p95 task time: −3 to −4% at 8k, −22 to −23% at 20k.
