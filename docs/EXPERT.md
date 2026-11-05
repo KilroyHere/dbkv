@@ -4,6 +4,39 @@ Question: does handing SQL *writing* to a SQL-specialized LoRA adapter (a `write
 Qwen3-8B BIRD agent more accurate and shorter than the base agent writing SQL itself, given the same schema brief?
 Code: `harness/expert/`. It imports `harness/agent/` and never edits it. GPU budget for this test: **2 node-hours**.
 
+## Verdict: parked (Nov 5)
+
+Aryan parked the expert idea on Nov 5, after Stage 1. The pre-registered Stage 1 rule said continue (on turns only);
+the decision overrides it on the latency and accuracy evidence below. Total GPU spend: **0.098 node-h** (job 60873555).
+
+- **Result: a negative finding.** Handing SQL writing to the LoRA adapter (`craboy4/qwen3-8b-bird-lora-dbdev4`,
+  via `write_sql(intent)`) gave, against the base agent with the same brief, pooled over full + oracle briefs:
+  - accuracy **+2.0 ± 2.6 points**, which is noise;
+  - p50 task time **+87%** (4.1 → 7.7 s);
+  - p95 **about 2.6×** (13 → 34–35 s);
+  - **3.3× more** invented-name errors per task (0.15 → 0.50).
+- **Why:**
+  - The adapter's SQL failed **34–40%** of the time, mostly `no_such_column`, and each failure led to a retry.
+  - Each adapter call costs a second prefill (no KV sharing with the agent) plus about 200 tokens of decode for its
+    `<schema_linking>` + `<query_plan>` preamble. That is 3.4–4.5 s per call, with no queueing.
+  - Adapter calls aren't counted as agent turns. So the "−13.8% turns" hides that **total model calls rose**:
+    6.67 vs 5.83 per task with the oracle brief (5.07 turns + 1.60 adapter calls vs 5.83 turns).
+- **Latency ceiling for any expert variant: ≈ 9% of turns.** In Stage 0, repair turns were 8.7% of turns with briefs,
+  so even a perfect SQL writer can remove only about that much. And **90% of wrong answers are wrong logic** (the SQL
+  runs, the result is wrong). That is an accuracy problem, not a latency one.
+- **Variants considered and not run:**
+  1. *A separate SQL model (e.g. Arctic-Text2SQL):* needs a second GPU (or shares the 40 GB KV pool with a second
+     set of weights).
+  2. *Activated LoRA / shared-KV switching (variant 3):* the only latency-neutral design, because the adapter would
+     reuse the agent's KV with no second prefill. But vLLM 0.33 rejects aLoRA (`vllm/lora/peft_helper.py:79-80`, §1.1).
+     It would need a vLLM fork plus an adapter trained as aLoRA.
+- **Future work (the untested Stage 2 fixes for arm (d)):**
+  1. give the adapter its native schema format (full DDL + BIRD column meanings), not our brief format, which
+     should cut the `no_such_column` failures;
+  2. SQL-only output, with no `<schema_linking>`/`<query_plan>` preamble, or a capped one;
+  3. no extra round trip: let the agent's next turn use the result directly, or return SQL without a separate
+     execution step.
+
 ## Status
 
 | Item | State |
@@ -12,6 +45,7 @@ Code: `harness/expert/`. It imports `harness/agent/` and never edits it. GPU bud
 | Stage 0 (traces, no GPU) | **Done: CONTINUE** by rule (repair 8.7% < 15%, but 90% of wrong answers are SQL-writing errors, almost all wrong logic). `results/expert_stage0.md` |
 | Stage 1.1 aLoRA support in installed vLLM | **Done: no.** vLLM 0.33.0 rejects aLoRA adapters explicitly; plain LoRA works. The adapter is plain LoRA anyway |
 | Stage 1.2 adapter training data / BIRD-dev contamination | **Done: no BIRD-dev data found.** The docs say BIRD train only. The byte-level check of the 5,160-record split finds 0 dev DBs, 0 dev questions, 0 dev evidence or SQL matches (`results/expert_contam.md`) |
+| **Overall** | **Parked (Nov 5, Aryan): negative finding; see Verdict above** |
 | Stage 1.3 runs (a)/(b)/(d) × full/ideal brief | **Done** (job 60873555, 23 min, **0.098 GPU node-h**). **Rule: CONTINUE** (only through turns: −13.8% vs (a), −30% vs (b)). **All 4 predictions not met**: Δacc +2.0 ± 2.6 pts, invented-name errors 3.3× *more*, turns −13.8%, p50 **+87%** (4.1 → 7.7 s). `results/expert_stage1.md` |
 
 ## Pre-registration (Thu Nov 5 2026, 12:50 PT; written before any data; never edit, only add observations below)
