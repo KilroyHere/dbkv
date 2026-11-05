@@ -161,6 +161,53 @@ Write these on the midpoint slide before seeing results, then score them afterwa
      - *Seen templates: history is slightly better, 85.0% vs 82.3%, MAE 0.45 vs 0.43.*
      - *`EXPLAIN` latency: mean 9 ms, p50 3 ms, p99 120 ms (the first call per query includes planning; a repeat call averages 2 ms).*
 
+### 2b. Overnight decision tests: rules pre-registered Wed Nov 4 2026, ~19:30 PT, before any of their data
+
+These were written before any Test 1–3 job ran or any BIRD data was downloaded. Do not edit them. Add observations below each rule only.
+
+**Test 1: D5 resume overhead (stateful sessions).**
+- *Measurement:* vLLM 0.33 with `--enable-per-request-metrics`. For every resumed turn (turn > 0, after warm-up), record:
+  - `queue` = `queue_time_ms`;
+  - `engine_ttft` = `time_to_first_token_ms` (scheduled → first token: the prefill of the tool result plus any recompute);
+  - `rest` = client TTFT − `queue` − `engine_ttft` (tokenization, prefix-hash, IPC, API/HTTP, replayer client).
+- *Client isolation:* on an idle server, time 20 single requests at 4k, 8k and 20k (fresh and resumed), plus a 1-token request. `client_min` = median `rest` of the 1-token request, i.e. the fixed HTTP and client cost.
+- `engine_overhead` = `rest` − `client_min` + `tokenize(ctx)`.
+  - `tokenize(ctx)` is the measured HF tokenizer time for the re-sent prompt as text. The replayer sends token ids, but real agents send text.
+- *Loaded points:* 8k × 12, 8k × 20, 20k × 4 and 20k × 8 on an A100-40GB, Redshift-like pauses.
+- *Rule:* let ratio = p95(`engine_overhead`) / p95(turn e2e) at each loaded point, and take the mean ratio over the 4 points.
+  - **≥ 10%: pursue stateful sessions.**
+  - **< 10%: drop.**
+
+**Test 2: real SQL-agent traces (BIRD dev, 150 tasks, seed 0, Qwen3-8B non-thinking, temperature 0, ≤ 15 turns).**
+- A *turn* is one LLM call. *Tools:* `list_tables`, `describe_table`, `sample_rows`, `execute_sql` on SQLite, with a 60 s timeout.
+- *Correct:* the final SQL's result rows equal the gold SQL's as sets (BIRD execution match). The final SQL is the last ```sql``` block in the final message, else the last successful `execute_sql`. No answer, an error or a timeout counts as wrong.
+- *Rule DB:* DB share = Σ tool wall time / Σ task wall time, pooled over the 150 tasks at **concurrency 1**.
+  - **≥ 40%: broker + result caching come back.**
+  - **< 40%: drop them.**
+  - (Concurrency 8 is reported, not judged.)
+- *Rule D4:* among tasks whose task latency is above the p90 at **concurrency 1**, take the share wrong.
+  - **≥ 60%: pursue early stopping (D4).**
+  - **< 40%: drop.**
+  - 40–60%: inconclusive. (Concurrency 8 is reported, not judged.)
+- *Also reported:*
+  - the share of DB time from repeated queries: exact text and sqlglot-canonical, within a task and across tasks on the same DB;
+  - the share of turns spent exploring: `list_tables`, `describe_table`, `sample_rows`.
+
+**Test 3: D2 pilot, schema brief (same 150 tasks, concurrency 8).**
+- *Arms:*
+  - (a) plain, reusing Test 2's concurrency-8 run;
+  - (b) the full schema plus 3 sample values per column in the system prompt;
+  - (c) an oracle brief: only the gold SQL's tables and columns, extracted with sqlglot.
+- *Report per arm:* mean turns per task, p50 and p95 task time, accuracy ± standard error, mean prompt tokens per task.
+- *Rule:* **pursue D2 iff** all three hold:
+  1. explore share of turns in (a) ≥ 30%;
+  2. mean turns (c) ≤ 0.75 × mean turns (a);
+  3. p50 task time (b) > 1.05 × p50 (c).
+  
+  Otherwise **drop D2**. If (b) is within 5% of (c), or better, a schema brief is just a configuration.
+
+**Budget for the night:** GPU spend stops at 3.5 node-h (expected ~2.5). Every GPU job pinned to `gpu&hbm40g`, and every job has `--time`.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 | Gate | Question | Where | Kill D3 (or its database signal) if |
