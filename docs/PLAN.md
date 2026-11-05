@@ -27,7 +27,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
    - **Counter-evidence:** arXiv 2609.18849 finds keep-all predictors up to ~25% worse than LRU without program FCFS, and argues pre-call estimates can't know tool durations.
    - **Already taken:** 2608.30830 already reports that released Continuum is a fixed 2 s pin, and gives a ~109 s retain-vs-discard break-even on H100.
    - **Still new:** the SQL pause-length crossover under program FCFS, `EXPLAIN` as a pre-call signal, and the separation of the scheduling win from the TTL win.
-4. `results/figures.py`: slide-ready G1/G2/G3 plots for Nov 9.
+4. `results/figures.py`: slide-ready G1/G2/G3 plots for Nov 9. **Draft done (Nov 4):** `fig_g1_gap_vs_ratio`, `fig_g1_policies`, `fig_g2_explain`, `fig_g3_limit` (G3 partial). Re-run once G3 and G1 v2b finish.
 5. Continuum env: a CPU job building `$SCRATCH/envs/continuum-env` from vllm-continuum (vLLM 0.10.2), trying precompiled wheels first.
 
 **Guardrails while running unattended:**
