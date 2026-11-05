@@ -55,6 +55,11 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
     elif a.brief == "oracle":
         tabs, cols = await asyncio.to_thread(tools.gold_tables_columns, db, task["SQL"])
         sys_prompt += "\n\nRelevant schema (with example values):\n" + await asyncio.to_thread(tools.schema, db, tabs, cols)
+    build_s = 0.0
+    if a.briefs:  # precomputed brief per question (harness/brief); its build time counts toward task time
+        b = a.briefs[str(task["question_id"])]
+        sys_prompt += "\n\nDatabase schema:\n" + b["brief"]
+        build_s = float(b.get("build_s", 0.0))
     q = task["question"] + (f"\nHint: {task['evidence']}" if task.get("evidence") else "")
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": q}]
     async with sem:
@@ -98,7 +103,7 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
                                          error=info["error"], rows=info["rows"]))
                 messages.append({"role": "tool", "tool_call_id": c.get("id", name), "content": text})
             turns_out.append(row)
-        task_s = time.monotonic() - t_start
+        task_s = time.monotonic() - t_start + build_s
         final_text = (messages[-1].get("content") or "")[:400] if messages[-1]["role"] == "assistant" else ""
     pred = answer or last_ok_sql
     correct, why = False, None
@@ -108,7 +113,7 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
         correct = (pe is None and ge is None and set(map(tuple, pr)) == set(map(tuple, gr)))
         why = pe or ("gold_error" if ge else None)
     tasks_out.append(dict(qid=task["question_id"], db=task["db_id"], difficulty=task.get("difficulty"),
-                          brief=a.brief, concurrency=a.concurrency, status=status, turns=n,
+                          brief=a.brief, build_s=round(build_s, 4), concurrency=a.concurrency, status=status, turns=n,
                           task_s=round(task_s, 3), db_s=round(db_time, 4), prompt_tokens=prompt_tok,
                           pred_sql=pred, used_answer=bool(answer), correct=bool(correct), pred_error=why,
                           final_text=final_text))
@@ -124,15 +129,23 @@ async def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--concurrency", type=int, default=1)
     ap.add_argument("--brief", default="none", choices=["none", "full", "oracle"])
+    ap.add_argument("--briefs", default="", help="JSONL {qid, brief, build_s} from harness/brief (arm name = --brief-name)")
+    ap.add_argument("--brief-name", default="")
     ap.add_argument("--max-turns", type=int, default=15)
     ap.add_argument("--max-tokens", type=int, default=1024)
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     dev = json.load(open(os.path.join(a.bird, "dev.json")))
-    sel = random.Random(a.seed).sample(range(len(dev)), a.n)
+    sel = random.Random(a.seed).sample(range(len(dev)), a.n) if a.n < len(dev) else list(range(len(dev)))
+    if a.briefs:
+        a._briefs_path = a.briefs
+        a.briefs = {str(json.loads(l)["qid"]): json.loads(l) for l in open(a.briefs)}
+        a.brief = a.brief_name or "file"
     tasks = [dev[i] for i in sel]
-    json.dump(dict(vars(a), qids=[t["question_id"] for t in tasks]), open(os.path.join(a.out, "config.json"), "w"), indent=1)
+    cfg = {k: v for k, v in vars(a).items() if k != "briefs"}
+    cfg["briefs_file"] = getattr(a, "_briefs_path", "")
+    json.dump(dict(cfg, qids=[t["question_id"] for t in tasks]), open(os.path.join(a.out, "config.json"), "w"), indent=1)
     turns_out, tasks_out = [], []
     sem = asyncio.Semaphore(a.concurrency)
     t = time.monotonic()
