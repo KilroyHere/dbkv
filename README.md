@@ -1,28 +1,37 @@
-# dbkv: schema briefs for fast SQL agents
+# dbkv: serving many SQL agents on shared GPUs without changing their answers
 
-CS 5470 (Aryan Patel). **Current direction (D2):** SQL agents spend about half their turns exploring an unfamiliar database. Can a compact, automatically built schema brief remove those turns, matching an oracle brief's latency and accuracy without the full schema's prompt cost, even under high concurrency?
+CS 5470 (Aryan Patel). Many tool-using SQL agents share one or a few GPUs. Every mechanism studied here changes **how agents are served, never what they answer**: a shared per-database schema brief, a gateway that admits whole tasks and orders requests by task start, and routing by database. The question: at loads near or above one GPU's capacity, how much p95 task time and throughput do these mechanisms recover at unchanged accuracy, compared with a naive deployment, and when does each lose?
 
-The earlier direction, D3 (database-informed KV retention while agents wait on SQL), was closed after its gates. Its measurements are kept as the characterization results.
+**Start with [AGENTS.md](AGENTS.md).**
 
-The full plan, current status, go/no-go gates, schedule and budget are in [docs/PLAN.md](docs/PLAN.md). The Perlmutter setup and workflow are in [docs/PERLMUTTER.md](docs/PERLMUTTER.md).
+**Status: paused at midpoint (Nov 6).** Part C (naive vs ours, full run) is pre-registered in [docs/PLAN.md](docs/PLAN.md) §2g but not run.
+
+## Headline results
+
+Setup: Qwen/Qwen3-8B on 1× A100-SXM4-40GB (Perlmutter), vLLM, a minimal ReAct SQL agent on BIRD dev (1,534 questions, 11 SQLite databases).
+
+1. **Where time goes.** In the real agent's task time, LLM decode is ~90% (89% in the explore arm) and the database is 3.6%. `results/t2_summary.md`, `results/fig_d2_time_breakdown.png`.
+2. **KV memory limit.** `harness/kv_limit.py` predicted 32 / 16 / 6.5 concurrent sessions at 4k / 8k / 20k context, and the measured cliff is right there (full-hit fraction ~0.9 at the predicted N, 0.10–0.34 one step above). `results/g3_summary.md`, `results/fig_g3_limit.png`.
+3. **Gateway.** At 250 tasks/min, admission + task-start priority cuts p95 by 82% (144 s vs stock ≥786 s) and gives 1.9× throughput (199 vs 105/min). It also beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67%. `results/phase2_gateway.md`, `results/a3_reqcap.md`, `results/fig_load_curve.png`.
+
+All results and figures are indexed in [results/README.md](results/README.md); the full story is in [docs/OVERVIEW.md](docs/OVERVIEW.md).
 
 ## Layout
 
-| Folder | Contents |
+| Path | Contents |
 |---|---|
-| `docs/` | Plan, prior-art notes, decisions |
-| `sim/` | Trace-driven simulator of GPU KV memory and retention policies (gate G1, policy tuning) |
-| `calib/` | `EXPLAIN`-vs-runtime calibration on DuckDB: TPC-H and BIRD (gate G2) |
-| `harness/` | Session replayer (`replay.py`, gate G3), overhead probe (`d5_probe.py`), KV-limit calculator (`kv_limit.py`) |
-| `harness/agent/` | ReAct SQL agent on BIRD (Qwen3-8B via vLLM tool calling, SQLite tools) and its analysis |
-| `harness/brief/` | Schema-brief generator built from the database alone (D2) |
-| `engine/` | Patches and notes for the Continuum fork of vLLM 0.10.2 |
-| `setup/` | `env.sh` (paths), `perlmutter_setup.sh` (rebuild everything), `dbkv-claude` (keep the Claude session alive), the lock file |
-| `slurm/` | Perlmutter job scripts (1-GPU `shared` / `shared_interactive`) |
-| `results/` | Small summary CSVs, markdown summaries and plots (`figures.py`). Raw traces stay on `$SCRATCH` |
+| `harness/agent/` | The frozen ReAct SQL agent on BIRD (`run_bird.py`, `tools.py`; tag `agent-frozen-v1`) and its analysis |
+| `harness/brief/` | Schema-brief generator built from the database alone, and the D2 analyses |
+| `harness/gateway/` | Gateway (admission, priority, routing), open-loop load generator, mock vLLM, summarizer |
+| `harness/` | G3 session replayer, KV-limit calculator, D5 overhead probe |
+| `sim/` | KV simulator (G1) and `openloop*.py`, the open-loop capacity simulator for Phase 2 |
+| `calib/` | EXPLAIN-vs-runtime calibration on DuckDB (G2) |
+| `engine/` | Notes on the Continuum fork of vLLM 0.10.2 (cited baseline only) |
+| `setup/` | `env.sh`, `perlmutter_setup.sh`, `dbkv-claude`, `dbkv-notify`, `job-nh` |
+| `slurm/` | Perlmutter job scripts |
+| `results/` | Small summaries and figures (`figures.py`); raw traces stay in `$SCRATCH/dbkv` |
+| `docs/` | `OVERVIEW.md`, `PLAN.md` (lab notebook), `PERLMUTTER.md` (environment log), `EXPERT.md`, prior-art notes |
 
 ## Where it runs
 
-Everything runs on Perlmutter, driven by an always-on Claude Code session (`setup/dbkv-claude`). The repo lives at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv`, and data and traces go in `$SCRATCH/dbkv/`. Heavy work runs in Slurm jobs, never on login nodes. See [docs/PLAN.md §4a](docs/PLAN.md).
-
-The CPU tools use the `dbkv` environment (`requirements.txt`). The engine work uses a separate `continuum` environment; see `engine/README.md`.
+Everything runs on Perlmutter. The repo lives at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv`; data and traces go in `$SCRATCH/dbkv/`. Heavy work runs in Slurm jobs, never on login nodes. Setup: [docs/PERLMUTTER.md](docs/PERLMUTTER.md).
