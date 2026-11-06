@@ -586,6 +586,11 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - *Compact:* ~920 tokens per DB × 11 ≈ 10k tokens (7% of a replica's pool). Every brief fits on both replicas, so affinity saves little KV. **Affinity vs RR p95: −5% at 380, −10% at 500, so P3 most likely NOT MET with compact.** Prefix hit: affinity +2–4 points over RR.
   - *Full:* ~4.3k tokens per DB × 11 ≈ 47k (34% of the pool) on every replica under RR, vs ~half that under affinity. That frees ~24k tokens (~17% of the pool) per replica. **Affinity vs RR p95: −15% at 380, −30% at 500; P3-style test MET with full.** Prefix hit: affinity +8 points.
   - *Least-loaded* sits between RR and affinity in both arms.
+  - *Observed (jobs 60912394, 60912395; `results/a2_phase3.md`):*
+    - *Compact: affinity vs RR p95 +29% at 380 (worse), -3.0% at 500; throughput +15% at 500.*
+    - *Full: −2.4% at 380, -1.0% at 500; throughput +9–10%.*
+    - ***P3 NOT MET with either brief.*** *Every cell was above 2-GPU capacity (no admission in Phase 3), so p95 is queue- and drain-dominated. The full-arm KV prediction was wrong.*
+    - *Not within ±5 points of the threshold, so no borderline repeat.*
 - **A3, request-cap baseline (rule pre-registered here).** At 250 per min, in one job: stock vLLM with `--max-num-seqs` 32 and 64 (no gateway, direct) vs "both" (K = 77). Order: reqcap64 → both → reqcap32. 1-min warm-up, 5-min window, 3-min drain cap. Prefix-cache hits reported.
   - **Rule A3:** "both" p95 ≥ 15% lower than the best request-cap setting's p95, **and** "both" throughput ≥ 95% of the best request-cap setting's. "Best" = the lower p95 of the two.
   - **Prediction:** a request cap limits *running requests*, not *tasks*. Tasks keep piling up between turns and lose their cached prefixes.
