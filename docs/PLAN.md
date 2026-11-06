@@ -495,6 +495,29 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - gateway overhead < 2 ms per request;
   - **P2 predicted MET**, S2 predicted to pass.
 
+**Phase 2 addendum: simulator predictions** (added Thu Nov 5 ~22:15 PT, before any Phase 2 GPU run; rules above unchanged).
+- **Tools:** `sim/openloop.py` and `openloop_rates.py`, srun job 60888767; `results/openloop_sim_summary.md`.
+- **Workload:** tasks replay real explore-agent traces (step 5, frozen agent), with Poisson arrivals.
+- **Cost model:** "cal" = `results/g3_costs.json` with c_dec and c_att ×2. Closed-loop check against the step-6 explore cells (p50/p95): c = 8, 4.48/13.1 vs real 4.47/12.6; c = 32, 9.3/26.9 vs 9.2/25.4; c = 64, 15.8/46.2 vs 16.9/45.8. The uncalibrated g3 costs underestimate by up to 25% at c = 64.
+- **Capacity (stock):** ~**190 tasks/min**. Throughput collapses past it: waiting requests lose their cached prefixes and re-prefill.
+- **Rates chosen:** **110 / 190 / 250 tasks/min** (0.6× / 1.0× / 1.3×).
+- **Admission limit:** K = floor(pool / mean active-task context) = floor(139,232 / 1,802) = **77** (61 at +25% context, 103 at −25%).
+
+**Predicted** (8-min window, mean ± sd over 5 seeds):
+
+| rate | stock p50 / p95 / thr | priority | admission | both |
+|---|---|---|---|---|
+| 110 | 5.9 / 17.2 s / 111 per min | same | same | same |
+| 190 | 23 / 210 s (sd 206) / 175 | 22 / 91 s / 181 | 19.7 / 51 s / 190 | 19.7 / 51 s / 190 |
+| 250 | 726 / ≥ 1,208 s / 73 | 420 / 691 s / 111 | 118 / 182 s / 195 | 118 / 182 s / 195 |
+
+- **Against the §2f guess (30% p95 cut):** the simulator predicts **> 80%** above capacity, with "both" throughput 2.7× stock. P2 is predicted met by a wide margin.
+- **GPU idle under admission:** ~0 (explore pauses are ~15 ms).
+- **Caveats:**
+  - the at-capacity point is metastable (stock collapses in some seeds over 30 min);
+  - above capacity, admission's task time is mostly queue wait and grows with the window;
+  - stock p95 above capacity is a lower bound.
+
 **Phase 3: routing on two GPUs** (only if S2 passes). Two vLLM replicas behind the gateway, compact brief, 2 arrival rates (at and above 2× single-GPU capacity), 8 min each.
 - **Policies:** round-robin (per task), least-loaded (fewest active tasks), and DB-affinity with a load cap (each DB is pinned to a replica; spill to the other when the pinned replica has > cap × fair share of active tasks; cap = 1.25).
 - **Self-check S3:** one replica behind the router matches Phase 2's direct numbers within ±10%.
