@@ -10,6 +10,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 |---|---|
 | **Direction** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
+| D2 Stage A: brief-aware prompt (Nov 5) | **FAILED the gate; Stage B not run.** Describe calls on brief tables fall 2.17 → 0.64/0.69 per task (gate ≤ 0.3). About 55% of what remains is on tables the lexical brief shows only partially; nudged prose turns rose 0.69 → 2.52, cancelling the saving. Waiting for Aryan (§2e-pre, `results/stage_a.md`) |
 | D2 step 2: fix and freeze agent | **Done, FROZEN at commit `220001e` (tag `agent-frozen-v1`).** Every later arm uses these agent files unchanged (`harness/agent/run_bird.py`, `tools.py`): Qwen3-8B non-thinking, temperature 0, max_tokens 1024, ≤ 15 turns. **Fixes:** (1) a prose reply with no tool call and no SQL gets a nudge instead of ending the task (the cause of the 28% no-SQL rate); (2) the last allowed turn forces the final SQL; (3) `describe_table` shows BIRD column descriptions, value notes and foreign keys; (4) an invented table or column returns the real names; (5) the prompt forbids guessing names. **Same 150 tasks, plain exploration, concurrency 8 (job 60872839): no-SQL 0% (was 28%), accuracy 46.0% ± 4.1 (was 36.0%), 7.4 turns per task, p50 4.1 s, p95 13.1 s.** Invented-name errors: 38 (was 109) |
 | D2 step 3: prior art (`docs/prior-art-brief.md`) | **Done** (24 papers). Nearest neighbour: Sophrosyne (2605.30862), which reports tokens and accuracy only. **Open:** turns and p50/p95 latency for full vs oracle vs automatic briefs in a multi-turn agent; behaviour under concurrency and KV pressure; a shared per-database brief cached as a prefix (TableCache is single-shot only). **Baselines to add:** embedding top-k, a one-call LLM selector |
 | D2 step 4: brief generator (`harness/brief/`) | **All built.** (iii) llm (60873675): table recall 91.4% / precision 90.5%, column recall 81.9% / precision 74.0%, build p50 0.46 s. **(i) compact, (ii) lexical (BM25) and oracle built for all 1,534 questions.** Mean size: (i) 2.9k chars, (ii) 0.8k, full 4.1k, oracle 0.26k. (ii) selection: table recall 95.3% (precision 70.5%), column recall 93.3% (precision 29.6%); all gold tables recalled for 90%. (iii) next. An embedding version of (ii) needs a model download (asked Aryan Nov 5). Variants (i) compact whole-DB, (ii) lexical/embedding-narrowed, (iii) cheap-model-narrowed; selection recall/precision vs gold |
@@ -405,6 +406,23 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
     - *So the c = 8 "yes" (§2c) does not carry to c ≥ 32 for the lexical brief.*
   - *Extra: caching off at c = 64, full p95 / lexical p95 = 3.41 (≥ 1.5, as predicted).*
   - *Accuracy at n = 300 is stable across concurrency per arm (explore 46%, full 47–48%, lexical 49–50%, oracle 54–56%).*
+
+### 2e-pre. Stage A: brief-aware prompt quick check (Nov 5; gate set by Aryan before the run; FAILED, so Stage B not run)
+
+- **Gate:** (2) or (3) must cut `describe_table` calls on tables already in the brief to ≤ 0.3 per task, keep no-SQL < 5%, and lose ≤ 3 accuracy points vs (1).
+- **Runs:** 150 questions, concurrency 8, lexical briefs (job 60879976, 0.05 GPU node-h; `results/stage_a.md`):
+
+| run | turns | p50 / p95 s | accuracy (Δ vs (1), paired SE) | describe on brief tables/task | nudged prose turns/task | turns after 1st OK SQL | prompt tok/task |
+|---|---|---|---|---|---|---|---|
+| (1) frozen prompt | 5.57 | 3.88 / 13.54 | 46.0% | 2.17 | 0.69 | 1.85 | 8,918 |
+| (2) brief-aware | 5.67 | 3.54 / 14.38 | 44.0% (−2.0, 2.6) | **0.64** | **2.52** | 3.44 | 9,024 |
+| (3) brief-aware + descriptions (+226 brief tokens) | 4.53 | 3.16 / 10.88 | 43.3% (−2.7, 3.0) | **0.69** | 1.29 | 2.45 | 7,296 |
+
+- **Result: FAIL.** Both cut redundant describes by ~70%, but not to ≤ 0.3. No-SQL and accuracy are within the gate.
+- **What went wrong:**
+  1. **About 55% of the remaining describes (53 of 96 in (2), 57 of 104 in (3)) are on tables the lexical brief shows only partially.** Lexical narrows columns, so the agent describes the table to see the rest. That is arguably legitimate, and the gate's "brief tables" counts it as redundant.
+  2. **The other ~45% are on fully shown tables, mostly in turns 1–2:** a check-first habit the prompt doesn't remove.
+  3. **Removing the "check with describe_table" rule made the model reply with prose plans instead of tool calls:** nudged turns per task 0.69 → 2.52 in (2). That cancels the saved turns, so (2) has no fewer turns than (1). Adding descriptions, (3), halves that effect and gives the only real turn cut (−19%) and a better p95, at −2.7 points accuracy. The text of nudged replies isn't logged, so the exact cause is not yet visible.
 
 ## 3. Go/no-go tests: decide before building the engine change
 
