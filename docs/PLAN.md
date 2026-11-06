@@ -593,6 +593,7 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
     - reqcap32: p95 ~300 s, ~150 per min, prefix hit ~60%;
     - both: p95 ~150 s, ~195 per min, prefix hit ~86%.
     - **A3 predicted MET** (p95 ~ −50%).
+  - *Observed (job 60912396; `results/a3_reqcap.md`): reqcap64 p95 306 s (lower bound), 130/min, hit 65%; reqcap32 341 s, 118/min; **both 101 s, 197/min, hit 86% → −67% p95, 151% throughput. A3 MET.***
 - **A4, collapse point (reported, no rule).** Stock and both at 210 and 230 per min, one job, order stock210 → both210 → both230 → stock230. Same window settings.
   - **Prediction:** stock keeps up at 210 (~207 per min) and falls behind at 230 (~170 per min, prefix hit < 70%), so its collapse point is ~220 per min. Both stays ~200–210 per min at both rates.
 - **B1 decision table (Aryan, written before Part A data), applied after Part A:**
