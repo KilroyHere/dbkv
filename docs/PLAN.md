@@ -1,5 +1,7 @@
 # dbkv plan: serving many SQL agents on shared GPUs without changing their answers
 
+> **Lab notebook: history and pre-registrations. Start with [docs/OVERVIEW.md](OVERVIEW.md).** (Agents: read [AGENTS.md](../AGENTS.md) first; don't read this file top to bottom.)
+
 *Framing since Thu Nov 5 2026, evening (Aryan): **serving many SQL agents on shared GPUs without changing their answers.***
 - *Contributions:*
   1. *characterization: time anatomy, the G3 memory limit, the priority test (done);*
@@ -917,7 +919,9 @@ These measurements stand on their own and feed the D2 poster's anatomy panel. De
 | Real BIRD agent: decode 90%, DB 3.6%, explore 53.5% of turns, 87% of slow tasks wrong | Test 2, `results/t2_summary.md` |
 | A schema brief halves turns; the oracle brief reaches 54% vs 36% plain | Test 3, `results/t3_summary.md` |
 
-## 10. Open questions for the advisor
+## 10. Open questions for the advisor (updated Nov 6)
 
-- Bhaskar's brief centers on a persistent tool-result cache. The bridge is that a cache hit is a zero-length pause, so it is one more class for the policy. Is that enough coverage of the brief?
-- Can the course grant more GPU hours if the 45-hour personal cap binds?
+- ~~Bhaskar's brief centers on a persistent tool-result cache. The bridge is that a cache hit is a zero-length pause, so it is one more class for the policy. Is that enough coverage of the brief?~~ *Superseded Nov 6: the broker/result cache was ruled out (DB is 3.6% of agent task time; Test 2, `results/t2_summary.md`), and the project is now a serving layer.*
+- **(a)** Does a serving layer for agent workloads fit the course scope? That means a gateway with task-level admission and priority, plus shared schema briefs, measured on one GPU.
+- **(b)** Is TP=4 vs 4 replicas on a 4-GPU node the right scaling study, now that DB-affinity routing was a negative result (PLAN §5)?
+- **(c)** Can the course grant more GPU hours if needed? The roadmap needs ~13–15 GPU node-h beyond Nov 6, against Aryan's 45-hour personal cap; check `iris` for current use.
