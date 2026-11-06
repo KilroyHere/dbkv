@@ -46,7 +46,7 @@ Everything is under `$DBKV_DATA` = `/pscratch/sd/a/ap2568/dbkv` for Aryan.
 - **Full-run jobs export tagged files, never HEAD:**
   - `d2_sweep.sbatch`, `gw_phase2/3.sbatch`, `gw_multi.sbatch` and `stage_a.sbatch` export the agent from `agent-frozen-v1` (`git show agent-frozen-v1:harness/agent/...`) into `$DBKV_DATA/tmp/frozen_agent.XXXX`.
   - `fullrun.sbatch` also exports the gateway from `system-frozen-v1` (override with `SYSTEM_TAG`).
-- **Gotcha:** HEAD's `run_bird.py` differs from `agent-frozen-v1`, because commit `a812dca` added `--prompt brief_aware`. So `slurm/d2_arms.sbatch`, which refuses to run when the two differ, will now exit at once. To rerun step 5, check out `agent-frozen-v1` or switch that script to the export pattern.
+- **Fixed Nov 6 (was a gotcha):** HEAD's `run_bird.py` differs from `agent-frozen-v1`, because commit `a812dca` added `--prompt brief_aware` (off by default). `slurm/d2_arms.sbatch` used to refuse to run when they differed. Since `02d29a6` it exports the tagged agent like `d2_sweep.sbatch` does, and `DRY_RUN=1 bash slurm/d2_arms.sbatch <arms>` checks the export and the brief files without a GPU. `slurm/agent_bird.sbatch` (Tests 2–3, pre-freeze) still runs HEAD's agent.
 
 ## Commands per result
 
@@ -203,7 +203,7 @@ GW_K=72 sbatch --job-name=c_rep1 slurm/fullrun.sbatch naive:100 naive:170 naive:
 
 ### Figures
 ```bash
-python results/figures.py      # needs every raw path below; overwrites all results/fig_*.png
+python results/figures.py      # raw data from $DBKV_RAW, else the CFS copy dbkv-data/runs, else $SCRATCH; overwrites all results/fig_*.png
 ```
 [results/README.md](../results/README.md#figures-what-figurespy-needs) says which figures can be rebuilt from `results/` alone.
 
@@ -231,4 +231,4 @@ To rerun experiments rather than redraw figures, a teammate would also need:
 - for G2: `tpch/` (30 G) and `tpcds/` (3.2 G), both regenerable with the gen scripts
 - their own env and model download
 
-**Don't copy anything yet; Aryan decides.**
+**Copied Nov 6 (Aryan's decision):** exactly these files, 144 of them, 35 MB, keeping the `runs/` layout, are at **`/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/`**. That directory is readable by group m4999 and by the team ACLs (ac3354, sj945, ut25). `results/figures.py` reads raw data from `$DBKV_RAW` if set, else this CFS copy, else `$SCRATCH/dbkv/runs`. **All 12 figures rebuild from the CFS copy alone** (checked in srun job 60921122 with `SCRATCH` unset: every PNG byte-identical to the committed one). Nothing else was copied.

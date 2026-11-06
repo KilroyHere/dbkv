@@ -55,7 +55,7 @@ Every file in `results/` is listed in one of the tables above or here.
 
 ## Figures: what `figures.py` needs
 
-`python results/figures.py` rebuilds **all** figures in one go and overwrites the committed PNGs. Raw paths come from `$SCRATCH/dbkv/runs/...`, where `SCR = $SCRATCH`, falling back to `/pscratch/sd/a/ap2568`. For a teammate, `$SCRATCH` is their own scratch, so the raw paths below don't exist. The script then dies at `d2_breakdown()` (an unguarded `open`). To rebuild only the figures that don't need raw data, import the module and call those functions one by one.
+`python results/figures.py` rebuilds **all** figures in one go and overwrites the committed PNGs. Raw run files are read from `$DBKV_RAW` if set, else from the **team-readable CFS copy `/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/`** (35 MB, copied Nov 6), else `$SCRATCH/dbkv/runs`. The table below names each figure's raw files relative to that runs/ root (written as Aryan's `/pscratch/...` path).
 
 | Figure | Function | Built from `results/` alone? | What it reads |
 |---|---|---|---|
@@ -74,4 +74,4 @@ Every file in `results/` is listed in one of the tables above or here.
 
 The two non-`fig_` plots, `g1v2_gap_vs_ratio.png` and `g1v2b_gap_vs_ratio.png`, are not drawn by `figures.py`. They come from `plot()` in `sim/g1_grid.py`, written when the grid ran. You can redraw them from the matching `results/g1v2*_gap.csv` by calling `sim.g1_grid.plot(rows, path)`; the script has no command-line option for this.
 
-**Summary:** 4 figures rebuild from `results/` alone (G1 ×2, priority test, Phase 2). `fig_g2_explain.png` rebuilds only partly. 7 need raw data from Aryan's `$SCRATCH`: G3 limit, the three D2 step-5 figures, the sweep, the load curve and A3. The exact files and their sizes are in [docs/REPRODUCE.md](../docs/REPRODUCE.md#what-a-teammate-can-and-cannot-read).
+**Summary:** 4 figures rebuild from `results/` alone (G1 ×2, priority test, Phase 2). `fig_g2_explain.png` rebuilds only partly. 7 need raw run files. **On Perlmutter (project m4999), all 12 rebuild from the CFS copy `dbkv-data/runs/`** (verified Nov 6, byte-identical). From a GitHub clone without that copy, only the first 4 work.
