@@ -20,7 +20,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Item | State |
 |---|---|
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
-| Overnight Nov 5–6 | Phase 1: not started. Phase 2: not started. Phase 3: not started (needs S2) |
+| Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. Phase 2: building. Phase 3: needs S2 |
 | **Direction (Nov 5, superseded by the framing above)** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
 | D2 Stage A: brief-aware prompt (Nov 5) | **FAILED the gate; Stage B not run.** Describe calls on brief tables fall 2.17 → 0.64/0.69 per task (gate ≤ 0.3). About 55% of what remains is on tables the lexical brief shows only partially; nudged prose turns rose 0.69 → 2.52, cancelling the saving. Waiting for Aryan (§2e-pre, `results/stage_a.md`) |
@@ -473,6 +473,12 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   | compact prefix hit | 90% | 90% |
 
   - **Verdict predicted: P1 NOT MET** (accuracy just under +5, p95 above explore).
+  - *Observed (job 60888614; `results/phase1_shared_brief.md`, `results/d2_kv_accounting.md`):*
+    - *Compact accuracy 49.7% at c = 32 (Δ vs explore +4.0) and 49.3% at c = 64 (Δ +2.7).*
+    - *p95 32.0 s vs explore 25.4 s at c = 32; 47.1 s vs 45.8 s at c = 64. KV mean 34% / 48%; prefix hit 90.9%.*
+    - ***P1 NOT MET** (as predicted).*
+    - *Against full at c = 64, compact halves p95 (47 vs 99 s), cuts KV from 69% to 48% with no preemptions, and keeps accuracy. Against explore it matches p50 but has a worse tail.*
+    - *KV accounting: full's extra KV = more requests in flight + per-DB briefs held once; per-agent unique tokens equal explore's (~1.4k); prefix duplication negligible. The first half of the KV prediction was wrong, the second right.*
 - **KV accounting** (analysis, no rule): why full uses 69% KV vs explore's 27% at c = 64 despite 93% prefix hits.
   - *Prediction:* most of it is per-agent tokens. Full's per-turn context is ~5.6k vs ~1.4k, and only ~4k of it is shared.
   - *Prediction:* simultaneous same-database first requests **do** duplicate the prefix (vLLM can reuse only computed blocks), but this is < 10% of full's KV at c = 64.
