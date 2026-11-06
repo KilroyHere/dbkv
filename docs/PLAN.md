@@ -20,7 +20,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Item | State |
 |---|---|
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
-| Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). Phase 2 grid running (60891199, 60891201). **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
+| Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
 | **Direction (Nov 5, superseded by the framing above)** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
 | D2 Stage A: brief-aware prompt (Nov 5) | **FAILED the gate; Stage B not run.** Describe calls on brief tables fall 2.17 → 0.64/0.69 per task (gate ≤ 0.3). About 55% of what remains is on tables the lexical brief shows only partially; nudged prose turns rose 0.69 → 2.52, cancelling the saving. Waiting for Aryan (§2e-pre, `results/stage_a.md`) |
@@ -507,6 +507,11 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - at the below-capacity rate, all four are within ±5%;
   - gateway overhead < 2 ms per request;
   - **P2 predicted MET**, S2 predicted to pass.
+  - *Observed (jobs 60891199, 60891201; `results/phase2_gateway.md`):*
+    - *At 250/min: stock p95 786 s (lower bound, 237 unfinished), 105/min; priority 430 s, 134/min; admission 204 s, 185/min; **both 144 s, 199/min → p95 −82%, throughput 190% of stock. P2 MET.***
+    - *Predicted −30% (my guess) and > 80% (the simulator addendum): the simulator was right.*
+    - *At 190/min no policy collapsed (the real capacity is above the simulator's 190). At 110/min the policies spread ±12% by run-to-run noise ("within ±5%" not met as stated).*
+    - *GPU idle under admission 0%. Gateway overhead 0.08–0.17 ms per request (p50).*
 
 **Phase 2 addendum: simulator predictions** (added Thu Nov 5 ~22:15 PT, before any Phase 2 GPU run; rules above unchanged).
 - **Tools:** `sim/openloop.py` and `openloop_rates.py`, srun job 60888767; `results/openloop_sim_summary.md`.
