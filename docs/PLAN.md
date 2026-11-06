@@ -20,7 +20,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Item | State |
 |---|---|
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
-| Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). Phase 2 grid running (60891199, 60891201). Phase 3: next |
+| Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). Phase 2 grid running (60891199, 60891201). **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
 | **Direction (Nov 5, superseded by the framing above)** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
 | D2 Stage A: brief-aware prompt (Nov 5) | **FAILED the gate; Stage B not run.** Describe calls on brief tables fall 2.17 → 0.64/0.69 per task (gate ≤ 0.3). About 55% of what remains is on tables the lexical brief shows only partially; nudged prose turns rose 0.69 → 2.52, cancelling the saving. Waiting for Aryan (§2e-pre, `results/stage_a.md`) |
@@ -540,6 +540,13 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - *Observed, S3 attempt 1 (job 60891207): router cell p50 5.56 s / p95 17.74 s / 109.9 per min. Against the named reference (S2 direct 5.05 / 16.99): **p50 +10.1% → FAIL by 0.1 pt**; p95 +4.4% passes.*
     - *Against the same-job direct cell (5.85 / 18.75): −5.0% / −5.4%. That job's direct cell was 16% slower than the S2 job's: node-to-node speed variation exceeds the ±10% tolerance. Gateway overhead 0.08 ms per request.*
     - *The one fix is a re-measurement, because the cause (node speed) isn't fixable in code: identical retry, job 60892403. The reference is unchanged. If it fails again, Phase 3 stops.*
+  - *Observed, S3 attempt 2 (job 60892403): router p50 5.59 s / p95 17.59 s. Against S2 direct (5.05 / 16.99): **p50 +10.7% → FAIL again**; p95 +3.5%. Against the same-job direct (5.23 / 17.67): +6.9% / −0.5%.*
+    - ***S3 failed after one fix, so Phase 3 is STOPPED for tonight (per the failure rules). P3 is not tested.***
+    - *For Aryan:*
+      - *the router's own overhead is 0.08 ms per request;*
+      - *within-job comparisons are inside ±10% (S2 retry −4.3%; S3 −5.0% and +6.9%);*
+      - *but the cross-job reference I named (S2 attempt 2's direct, from a fast node) sits ~4–16% below other nodes' direct runs (5.12, 5.23, 5.85 s).*
+      - *A self-check with a same-job control would pass. Changing the criterion is Aryan's call.*
 - **Rule P3 — pass iff:** affinity + cap has p95 ≥ 15% lower than round-robin at the same (above-capacity) rate.
 - **Predictions:**
   - affinity + cap beats round-robin by **15%** at the above rate (borderline) and **5%** at the at-capacity rate;
