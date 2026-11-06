@@ -626,7 +626,7 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
 - A failed P1, P2 or P3 is a result, recorded honestly, and the night continues.
 - Stop only on: a self-check failing after one fix (that phase only; Phase 3 needs S2), budget (**3 GPU node-h overnight**), or an unfixable crash.
 
-### 2g. Part C: slim full run, naive vs ours (pre-registered Fri Nov 6 2026 ~10:20 PT, before any Part C job)
+### 2g. Part C: slim full run, naive vs ours (pre-registered Fri Nov 6 2026 10:01 PT, commit 2606a8f, before any Part C job)
 
 *Do not edit; add observations below. Seen before writing: all of Part A (A2, A3, A4) and Phases 1–2.*
 
