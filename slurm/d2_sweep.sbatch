@@ -9,6 +9,7 @@
 # A sampler records vllm:kv_cache_usage_perc, num_requests_running/waiting and the counters for
 # prefix-cache queries/hits and preemptions every 2 s into <arm>_c<conc>/metrics.jsonl.
 # Cost: ~5-10 min per cell; 12 cells per job ~1.5-2 h -> ~0.4-0.5 node-h; --time 3:00 caps at 0.75.
+# Phase 1 (Nov 5 night): 3 compact cells, ~25 min -> ~0.12 node-h; submit with --time 1:00.
 #SBATCH --job-name=d2_sweep
 #SBATCH --account=m4999_g
 # A100-40GB only: plain "gpu" can land on 80GB nodes.
@@ -23,8 +24,10 @@
 set -uo pipefail
 source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
 cd "$DBKV_REPO"
-git diff --quiet agent-frozen-v1 -- harness/agent/run_bird.py harness/agent/tools.py \
-  || { echo "agent files differ from agent-frozen-v1; refusing to run"; exit 1; }
+# Run an exact export of the frozen agent (tag agent-frozen-v1), whatever HEAD's harness/agent contains.
+AGENT_DIR=$(mktemp -d -p "$DBKV_DATA/tmp" frozen_agent.XXXX)
+git show agent-frozen-v1:harness/agent/run_bird.py > "$AGENT_DIR/run_bird.py"
+git show agent-frozen-v1:harness/agent/tools.py > "$AGENT_DIR/tools.py"
 PC=$1; shift
 [[ $PC == on ]] && PCFLAG=--enable-prefix-caching || PCFLAG=--no-enable-prefix-caching
 BIRD=$DBKV_DATA/bird/dev_20240627; BRIEFS=${D2_BRIEFS:-$DBKV_DATA/briefs}; N=${D2_N:-300}
@@ -64,7 +67,7 @@ for cell in "$@"; do
   esac
   echo "$(date -Is) cell $arm c=$c"
   sample "$D/metrics.jsonl" & SP=$!
-  python harness/agent/run_bird.py --url $URL --bird $BIRD --n $N --seed 0 --concurrency $c "${EXTRA[@]}" \
+  python "$AGENT_DIR/run_bird.py" --url $URL --bird $BIRD --n $N --seed 0 --concurrency $c "${EXTRA[@]}" \
     --out "$D" > "$D.log" 2>&1
   kill $SP 2>/dev/null; tail -1 "$D.log"
 done
