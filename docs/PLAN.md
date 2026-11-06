@@ -41,6 +41,19 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | G3 memory limit | **Done, not killed** (60825601 + 60827431, 1.26 GPU node-h, 40GB). The pool is 139,232 tokens. Caches collapse just past the predicted limits (32/16/6.5), from ~0.9 full hits to 0.1–0.34 at +25%. Recompute + re-queue is 24–75% of p95 per-turn latency above the limit. Prediction 1a met within grid resolution (`results/g3_summary.md`) |
 | Continuum code | **`$SCRATCH/envs/continuum-env` built** (60826039, precompiled 0.10.2 kernels, torch 2.8.0+cu128). Policies `fcfs`/`priority`/`continuum` import; no GPU test yet. Located: github.com/Hanchenli/vllm-continuum, vLLM 0.10.2; the released code uses a fixed 2 s per-tool threshold, not the paper's Eq. 1 (→ §9a). Stony Brook repo audited (→ §9b) |
 
+**Overnight decision table (Nov 5–6; rules in §2f, pre-registered 21:37 PT before any job; nothing changed afterwards):**
+
+| Test | Measured | Rule | Verdict |
+|---|---|---|---|
+| P1: shared compact brief under load | compact vs explore: +4.0 / +2.7 accuracy points; p95 32.0 vs 25.4 s (c = 32), 47.1 vs 45.8 s (c = 64). vs full at c = 64: p95 47 vs 99 s, KV 48% vs 69% | ≥ +5 points AND p95 ≤ explore at 32 and 64 | **NOT MET** (as predicted) |
+| KV accounting | full's extra KV = more requests in flight (43 vs 25) + per-DB briefs held once; unique tokens per request ≈ explore's (1.4k); prefix duplication ≤ 2 of 300 | analysis | prediction half wrong (not per-agent), half right (duplication negligible) |
+| S2: gateway vs direct | attempt 1: p50 +10.9% (cell-order drift, decode +7.6% in the second cell); after the fix (cache reset, order reversed): −4.3% / −7.3% | ±10% | **PASS after one fix** |
+| P2: gateway, 250/min | both p95 144 vs ≥ 786 s (−82%), throughput 199 vs 105/min (190%); admission −74%, priority −45%; GPU idle 0%; overhead < 0.3 ms | ≥ 20% p95 cut, ≥ 95% throughput | **MET** |
+| S3: router, 1 replica | p50 +10.1% then +10.7% vs the named S2 reference; within the same job −5.0% / +6.9% | ±10% vs Phase 2's direct | **FAIL after one fix → Phase 3 stopped** (Aryan to decide) |
+| P3: affinity routing | not run | — | **not tested** |
+
+Overnight GPU: 1.12 node-h (stop line 3). Plus 0.006 CPU node-h (simulator).
+
 **Next (D2, Nov 5), in order:**
 1. Docs (done, this commit).
 2. Fix the agent: no-SQL rate < 5%; BIRD column descriptions; then freeze. Email when frozen.
