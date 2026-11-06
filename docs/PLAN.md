@@ -22,7 +22,8 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
 | Part A (Nov 6) | A1: S3 passes under Aryan's same-job amendment. **A2/P3 NOT MET.** **A3 MET.** **A4: stock collapse ≈ 200 tasks/min;** both plateaus at 190–200/min. 1.443 GPU node-h. `results/a2_phase3.md`, `a3_reqcap.md`, `a4_collapse.md` |
-| Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Waiting for Aryan's go** |
+| **Project state** | **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.** No GPU jobs after Nov 6. |
+| Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Not run (paused at midpoint)** |
 | Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
 | **Direction (Nov 5, superseded by the framing above)** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
@@ -665,6 +666,8 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 - **H1 MET** (~2.8×), **H2 MET** (ours far lower), **H3 MET**: ours ~+5 points, because naive leaves many unfinished. Over tasks finished by both, ours − naive ≈ +1 ± 2 points.
 
 **Cost:** 2 jobs × (8 cells × ~10 min + 2 server starts) ≈ 2 × 1.5 h → **~0.75 GPU node-h** (cap 1.1 at `--time 2:15`); stop and email at 1.5. **Not submitted until Aryan's "go".**
+
+*Status note (Aryan, Nov 6): **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.***
 
 ## 3. Go/no-go tests: decide before building the engine change
 
