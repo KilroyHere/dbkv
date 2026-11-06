@@ -1,4 +1,6 @@
-# calib: EXPLAIN vs runtime on DuckDB (TPC-H, TPC-DS). Gate G2. See docs/PLAN.md §3.
+# calib: EXPLAIN vs runtime on DuckDB (TPC-H, TPC-DS). Gate G2.
+
+A closed direction (D3), kept for G2. Results: `results/g2_sf10_summary.md`, `results/g2_sf100_summary.md`, figure `results/fig_g2_explain.png`.
 
 - `g2_queries.py`: query generator. TPC-H 22 templates with qgen-range parameters; TPC-DS
   `tpcds_queries()` with year/month shifts; agent-like probes (point, range, groupby, count, join,
@@ -9,4 +11,4 @@
 - `g2_analyze.py <run_dir>`: Spearman rho, 3-class accuracy (0.25 s / 2 s), EXPLAIN regressor vs
   per-template history vs global median, leave-one-template-out and random 5-fold. Writes
   `summary.json`, `summary.md`.
-- `g2_sf10.sbatch`: full run on TPC-H SF10 (+ TPC-DS SF10 if present). Run on compute nodes only.
+- `g2_sf10.sbatch` / `g2_sf100.sbatch`: full runs on TPC-H SF10 (+ TPC-DS SF10 if present) and SF100. Compute nodes only.
