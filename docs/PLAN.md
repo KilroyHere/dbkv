@@ -20,6 +20,9 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Item | State |
 |---|---|
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
+| **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
+| Part A (Nov 6) | A1: S3 passes under Aryan's same-job amendment. **A2/P3 NOT MET.** **A3 MET.** **A4: stock collapse ≈ 200 tasks/min;** both plateaus at 190–200/min. 1.443 GPU node-h. `results/a2_phase3.md`, `a3_reqcap.md`, `a4_collapse.md` |
+| Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Waiting for Aryan's go** |
 | Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
 | **Direction (Nov 5, superseded by the framing above)** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
@@ -611,10 +614,57 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - *P3 met only with full:* final system = compact + both (no routing); routing gets its own "when it pays off" panel with the full schema.
   - *Neither:* routing dropped and reported as a negative result; the 4-GPU block becomes TP=4 vs 4 replicas only.
 - **Part A budget:** expected ~1.2 GPU node-h; stop and email at 1.5.
+- **B1 outcome (applied Fri Nov 6 after Part A):**
+  - **A3 met → the gateway is "both"** (task-level admission + task-start priority).
+  - **P3 met with neither brief → routing dropped,** reported as a negative result; the 4-GPU block becomes TP=4 vs 4 replicas only.
+  - **Final system = compact whole-DB brief + "both" on one GPU.** Frozen as tag `system-frozen-v1` (`0002aae`): gateway files at that commit, agent `agent-frozen-v1`, briefs sha256-pinned in `$DBKV_DATA/frozen/system-v1`.
+  - **K = 72 for compact** = floor(139,232 / 1,924), where 1,924 is the peak KV per active task in Phase 1 compact at c = 64 (job 60888614: peak 88% KV at 64 tasks, no preemptions). It follows the same "pool / per-task context" rule that gave K = 77 for explore.
+- **Part A spend:** 1.443 GPU node-h (stop line 1.5).
+
 
 **Failure handling.**
 - A failed P1, P2 or P3 is a result, recorded honestly, and the night continues.
 - Stop only on: a self-check failing after one fix (that phase only; Phase 3 needs S2), budget (**3 GPU node-h overnight**), or an unfixable crash.
+
+### 2g. Part C: slim full run, naive vs ours (pre-registered Fri Nov 6 2026 ~10:20 PT, before any Part C job)
+
+*Do not edit; add observations below. Seen before writing: all of Part A (A2, A3, A4) and Phases 1–2.*
+
+**Systems** (both run from exported tagged files via `slurm/fullrun.sbatch`):
+- **naive** = full-schema brief + stock vLLM (FCFS), agents talk directly to vLLM. No routing (routing was dropped).
+- **ours** = the final system: compact brief + gateway "both" (admission K = 72 + task-start priority) on a priority-scheduled vLLM.
+- Same frozen agent (`agent-frozen-v1`), same seeded task stream (BIRD dev over all 11 DBs), same arrival times at each rate.
+
+**Rates:** **100, 170, 230, 300 tasks/min**, about 0.5×, 0.85×, 1.15× and 1.5× of A4's collapse point (~200/min for stock with the explore agent). The same absolute rates for both systems.
+
+**Cell:** 1-min warm-up, 5-min measured window, 3-min drain cap. Unfinished tasks count as unfinished (in p95 as their elapsed time; in accuracy as wrong).
+
+**Jobs:** 2 reps, on separate jobs (and so, normally, separate nodes; nodes recorded). Within each job both systems run as blocks, with the block order reversed between reps:
+- rep 1: naive 100 → 170 → 230 → 300, then ours 100 → 170 → 230 → 300;
+- rep 2: ours block first, then naive.
+
+Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−67% vs 15%) and P3 (−3% vs 15%) are both far from their thresholds. No ablations, no Continuum runs.
+
+**Rules** (judged on the mean over the 2 reps; ranges reported):
+- **H1:** ours throughput ≥ 1.5× naive's at 300/min.
+- **H2:** ours p95 ≤ naive p95 × 1.10 at **each** of the below-collapse rates, 100 and 170/min.
+- **H3:** ours accuracy ≥ naive accuracy − 2 points.
+  - Paired by task over tasks arriving in the measured window: same seed, so the same task sequence; unfinished counts as wrong. Pooled over all 4 rates and both reps.
+  - Also reported: accuracy over tasks that finished in both systems.
+
+**Predictions** (per 1 GPU, mean over reps):
+
+| rate | naive throughput / p95 | ours throughput / p95 |
+|---|---|---|
+| 100 | ~75/min / ~300 s (already over capacity) | ~99/min / ~15 s |
+| 170 | ~75 / ~400 s | ~165 / ~45 s |
+| 230 | ~70 / ~420 s | ~185 / ~110 s |
+| 300 | ~65 / ~430 s | ~185 / ~230 s |
+
+- Naive's capacity estimate: full on 2 GPUs managed 149–163/min, so ~75–80 per GPU.
+- **H1 MET** (~2.8×), **H2 MET** (ours far lower), **H3 MET**: ours ~+5 points, because naive leaves many unfinished. Over tasks finished by both, ours − naive ≈ +1 ± 2 points.
+
+**Cost:** 2 jobs × (8 cells × ~10 min + 2 server starts) ≈ 2 × 1.5 h → **~0.75 GPU node-h** (cap 1.1 at `--time 2:15`); stop and email at 1.5. **Not submitted until Aryan's "go".**
 
 ## 3. Go/no-go tests: decide before building the engine change
 
@@ -696,6 +746,8 @@ Do NOT start any block without pre-registered rules and Aryan's approval of that
 |---|---|---|
 | Nov 7–8 | Aryan reviews the overnight results; midpoint slide; team doc update | — |
 | Nov 9 | Midpoint. Ask the instructor whether a serving layer for agent workloads fits the scope | — |
+| Nov 6–7 (added) | **Part C slim full run** (§2g), after Aryan's go: naive vs ours, 4 rates × 2 reps | ~0.75 |
+| After Part C (updated Nov 6) | **4-GPU block: TP=4 vs 4 replicas first** (routing was dropped, so no routing layouts); the second model only if time allows | — |
 | Nov 10–16 | 3 repeats of every poster point, with error bars; full load curves (6–8 rates); **headline comparison**: naive deployment (full schema, round-robin, stock scheduling) vs combined (shared brief + gateway + affinity routing) on p95, throughput and accuracy; Continuum fork as an external baseline | ~5 |
 | Nov 17–23 | Full 4-GPU node: 4 replicas vs TP=4 vs 2× TP=2; skewed DB popularity (Zipf) to test the load cap; a second model (e.g. Qwen3-14B, TP=2) to check the KV model predicts its limit (needs Aryan's download approval) | ~6–8 |
 | Nov 24–30 | When it loses: gateway overhead at light load; the explore agent under routing; long tool waits (admission idling); admission limit from the KV model vs the best hand-tuned limit; simulator vs real fidelity | ~2 |
