@@ -47,6 +47,7 @@ GWPORT=$(gw_free_port); GWURL=http://127.0.0.1:$GWPORT
 echo "$(date -Is) $(hostname) job $SLURM_JOB_ID replicas=$NREP cells: $* cap=${GW_CAP:-1.25} W=$GW_WARMUP" \
      "M=$GW_MEASURE drain=$GW_DRAIN seed=$GW_SEED briefs=$GW_BRIEFS repo $(git rev-parse --short HEAD)"
 nvidia-smi --query-gpu=index,name,memory.total --format=csv
+export VLLM_SERVER_DEV_MODE=1   # enables POST /reset_prefix_cache (S2 fix, Nov 5: reset between cells)
 trap gw_cleanup EXIT
 # Started one after the other so the second reuses the first's torch.compile cache instead of racing it.
 for r in $(seq 0 $((NREP - 1))); do
@@ -57,6 +58,7 @@ for cell in "$@"; do
   pol=${cell%%:*}; rate=${cell##*:}; D="$OUT/${pol}_r${rate}"; mkdir -p "$D"
   echo "$(date -Is) cell $pol rate=$rate/min"
   gw_wait_idle "${URLS[@]}"
+  for u in "${URLS[@]}"; do curl -s -X POST $u/reset_prefix_cache >/dev/null || true; done   # S2 fix: no cache carry-over
   if [[ $pol == direct ]]; then
     gw_loadgen "$D" ${URLS[0]} $rate ${URLS[0]} "${BRIEF_ARGS[@]}"; continue
   fi

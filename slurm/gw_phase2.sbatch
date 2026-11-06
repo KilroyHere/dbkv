@@ -55,6 +55,7 @@ GWPORT=$(gw_free_port); GWURL=http://127.0.0.1:$GWPORT
 echo "$(date -Is) $(hostname) job $SLURM_JOB_ID server=$SCHED cells: $* K=${GW_K:-} W=$GW_WARMUP M=$GW_MEASURE" \
      "drain=$GW_DRAIN seed=$GW_SEED briefs=${GW_BRIEFS:-none} repo $(git rev-parse --short HEAD)"
 nvidia-smi --query-gpu=name,memory.total --format=csv
+export VLLM_SERVER_DEV_MODE=1   # enables POST /reset_prefix_cache (S2 fix, Nov 5: reset between cells)
 trap gw_cleanup EXIT
 gw_start_vllm 0 $PORT "$OUT/server.log" $SCHED || exit 1
 
@@ -62,6 +63,7 @@ for cell in "$@"; do
   pol=${cell%%:*}; rate=${cell##*:}; D="$OUT/${pol}_r${rate}"; mkdir -p "$D"
   echo "$(date -Is) cell $pol rate=$rate/min"
   gw_wait_idle $URL
+  curl -s -X POST $URL/reset_prefix_cache >/dev/null || true   # S2 fix: no cache carry-over between cells
   case $pol in
     direct)    gw_loadgen "$D" $URL $rate $URL "${BRIEF_ARGS[@]}"; continue ;;
     stock)     FLAGS=() ;;
