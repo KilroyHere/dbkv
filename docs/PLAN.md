@@ -1,4 +1,15 @@
-# dbkv plan: D2, schema briefs that remove SQL agents' exploration turns
+# dbkv plan: serving many SQL agents on shared GPUs without changing their answers
+
+*Framing since Thu Nov 5 2026, evening (Aryan): **serving many SQL agents on shared GPUs without changing their answers.***
+- *Contributions:*
+  1. *characterization: time anatomy, the G3 memory limit, the priority test (done);*
+  2. *a shared per-database brief as a cached prefix under load;*
+  3. *an agent gateway: whole-task admission from `kv_limit.py` plus task-start priority;*
+  4. *multi-GPU routing by database.*
+- *Out of scope: broker/DB caching, KV retention for slow queries, the expert adapter, speculative decoding, answer trimming, stateful sessions.*
+- *The D2 schema-brief work below is kept as written; it becomes contribution (2)'s input.*
+
+*(Earlier header, kept:)* **D2, schema briefs that remove SQL agents' exploration turns**
 
 *Direction since Thu Nov 5 2026: **D2** (§1). The earlier direction, **D3** (the optimizer's estimate decides which paused agents keep their KV cache), is **closed**: G1 showed its mechanism has nothing to act on. D3's gates and tests are kept as the characterization results (§11). Every pre-registered rule and observation below is kept exactly as written; superseded parts carry a dated note.*
 
@@ -8,7 +19,9 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 
 | Item | State |
 |---|---|
-| **Direction** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
+| **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
+| Overnight Nov 5–6 | Phase 1: not started. Phase 2: not started. Phase 3: not started (needs S2) |
+| **Direction (Nov 5, superseded by the framing above)** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
 | D2 Stage A: brief-aware prompt (Nov 5) | **FAILED the gate; Stage B not run.** Describe calls on brief tables fall 2.17 → 0.64/0.69 per task (gate ≤ 0.3). About 55% of what remains is on tables the lexical brief shows only partially; nudged prose turns rose 0.69 → 2.52, cancelling the saving. Waiting for Aryan (§2e-pre, `results/stage_a.md`) |
 | D2 step 2: fix and freeze agent | **Done, FROZEN at commit `220001e` (tag `agent-frozen-v1`).** Every later arm uses these agent files unchanged (`harness/agent/run_bird.py`, `tools.py`): Qwen3-8B non-thinking, temperature 0, max_tokens 1024, ≤ 15 turns. **Fixes:** (1) a prose reply with no tool call and no SQL gets a nudge instead of ending the task (the cause of the 28% no-SQL rate); (2) the last allowed turn forces the final SQL; (3) `describe_table` shows BIRD column descriptions, value notes and foreign keys; (4) an invented table or column returns the real names; (5) the prompt forbids guessing names. **Same 150 tasks, plain exploration, concurrency 8 (job 60872839): no-SQL 0% (was 28%), accuracy 46.0% ± 4.1 (was 36.0%), 7.4 turns per task, p50 4.1 s, p95 13.1 s.** Invented-name errors: 38 (was 109) |
@@ -105,7 +118,21 @@ Overnight GPU: 0.153 node-h (stop line 3.5). BIRD agent accuracy: 34–36% plain
 - If any gate result looks decisive either way, notify Aryan immediately.
 - GPU spend (Nov 4): used 0.44 (smoke 0.069, 80GB-mislanded 20k sweep 0.207, 80GB priority test 0.165). Running or queued: 4k+8k sweep 60825601 (~0.9–1.1), 20k redo 60827431 (~0.47), priority redo 60827432 (~0.28). **Expected total ≈ 2.2 node-h (≈ 2.6 if every job hits its limit), against the 5 node-h stop line.**
 
-## 1. The project in one paragraph (D2, since Nov 5)
+## 1. The project in one paragraph (framing since Nov 5 evening)
+
+Many tool-using SQL agents share one or a few GPUs. Our measurements show three things:
+- Their time is LLM decoding over many turns. The database is 3–15% of task time.
+- GPU KV memory sets a sharp concurrency limit, which `harness/kv_limit.py` predicts to within grid resolution (G3).
+- Scheduling order matters: program-level priority cuts p95 by 3–23% on real vLLM.
+
+Every mechanism we study changes **how agents are served, never what they answer**:
+- **(2) a shared per-database brief** placed first in the prompt, so concurrent agents on one database reuse its cached prefix;
+- **(3) a gateway** that admits whole tasks only while the KV model says they fit, and orders requests by task start;
+- **(4) routing by database** across GPU replicas, so each replica's prefix cache stays warm, with a load cap against hot databases.
+
+**Research question.** At loads near and above one GPU's capacity, how much p95 task time and throughput do these serving-side mechanisms recover, at unchanged accuracy, compared with a naive deployment (full schema, round-robin, stock scheduling)? And when does each one lose?
+
+## 1-d2. The D2 project paragraph (Nov 5; superseded Nov 5 evening by §1, kept as written)
 
 A SQL agent answering a question about an unfamiliar database spends its first turns exploring it: listing tables, describing them, sampling rows. In our Qwen3-8B ReAct agent on BIRD dev (Test 2, overnight Nov 4), **53.5% of turns were exploration**. Each turn costs a full LLM call, and **decoding is 90% of task time** (the database is 3.6%). Giving the agent a schema brief up front removes most of those turns:
 - the full schema plus samples halves turns (6.1 → 3.1) and raises accuracy 36% → 43%;
@@ -424,6 +451,64 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   2. **The other ~45% are on fully shown tables, mostly in turns 1–2:** a check-first habit the prompt doesn't remove.
   3. **Removing the "check with describe_table" rule made the model reply with prose plans instead of tool calls:** nudged turns per task 0.69 → 2.52 in (2). That cancels the saved turns, so (2) has no fewer turns than (1). Adding descriptions, (3), halves that effect and gives the only real turn cut (−19%) and a better p95, at −2.7 points accuracy. The text of nudged replies isn't logged, so the exact cause is not yet visible.
 
+### 2f. Overnight Nov 5–6: serving-side rules, pre-registered Thu Nov 5 2026 ~21:40 PT, before any Phase 1–3 job
+
+*Do not edit; add observations below. The simulator's capacity estimates and its predicted p95 per policy for Phase 2 will be **added below as a dated addendum before any Phase 2 GPU run**. That adds predictions only; the rules here don't change.*
+
+*Seen before writing this: step 5 (§2c), step 6 (§2d; explore and full at c = 8/32/64 on the same 300 questions), Stage A.*
+
+**Phase 1: shared whole-database brief under load.**
+- **Setup:** the compact brief (i), the same 300 questions (seed 0), concurrency 8/32/64, prefix caching on, frozen agent `220001e` with its frozen prompt.
+- **Comparison:** against step 6's explore and full cells. Those cells are the same setup and the same 300 questions, but ran in a different job, at a different time, on a different node. That's a caveat: there is no same-job control. The c = 8 compact cell can be checked for consistency against step 5's compact arm.
+- **Rule P1 — pass iff both:**
+  - compact accuracy ≥ explore accuracy + 5 points (unpaired cell values; explore at that c);
+  - compact p95 ≤ explore p95, at **both** c = 32 and c = 64.
+- **Predictions:**
+
+  | | c = 32 | c = 64 |
+  |---|---|---|
+  | compact accuracy | 50.5% (explore 45.7%, so +4.8) | 50.5% (explore 46.7%, so +3.8) |
+  | compact p95 | 27 s (explore 25.4 s) | 52 s (explore 45.8 s) |
+  | compact KV mean | 35% | 55% |
+  | compact prefix hit | 90% | 90% |
+
+  - **Verdict predicted: P1 NOT MET** (accuracy just under +5, p95 above explore).
+- **KV accounting** (analysis, no rule): why full uses 69% KV vs explore's 27% at c = 64 despite 93% prefix hits.
+  - *Prediction:* most of it is per-agent tokens. Full's per-turn context is ~5.6k vs ~1.4k, and only ~4k of it is shared.
+  - *Prediction:* simultaneous same-database first requests **do** duplicate the prefix (vLLM can reuse only computed blocks), but this is < 10% of full's KV at c = 64.
+
+**Phase 2: gateway on one GPU** (explore agent, open-loop Poisson task arrivals over all 11 BIRD databases, fixed seed, 8 min measured per point).
+- **Policies:**
+  - **stock:** direct-equivalent, no limit, FCFS;
+  - **priority:** vLLM `--scheduling-policy priority`, priority = task start;
+  - **admission:** at most K active tasks, where K comes from `kv_limit.py` with the measured per-agent context; others queue at the gateway;
+  - **both.**
+- **Rates:** 3 arrival rates, below / at / above capacity, chosen from the simulator (addendum).
+- **Self-check S2:** the gateway with no limit and no priority matches direct-to-vLLM p50 and p95 within ±10% at one load point. If it fails after one fix, stop Phase 2 and Phase 3.
+- **Rule P2 — pass iff, at the above-capacity rate, "both" has:**
+  - p95 ≥ 20% lower than stock;
+  - throughput (completed tasks per measured minute) ≥ 95% of stock's.
+  - Also report GPU idle time under admission and the gateway overhead (ms per request).
+- **Predictions:**
+  - at the above-capacity rate, "both" cuts p95 by **30%** vs stock with **2%** throughput loss; priority alone cuts 15%; admission alone 20%;
+  - at the below-capacity rate, all four are within ±5%;
+  - gateway overhead < 2 ms per request;
+  - **P2 predicted MET**, S2 predicted to pass.
+
+**Phase 3: routing on two GPUs** (only if S2 passes). Two vLLM replicas behind the gateway, compact brief, 2 arrival rates (at and above 2× single-GPU capacity), 8 min each.
+- **Policies:** round-robin (per task), least-loaded (fewest active tasks), and DB-affinity with a load cap (each DB is pinned to a replica; spill to the other when the pinned replica has > cap × fair share of active tasks; cap = 1.25).
+- **Self-check S3:** one replica behind the router matches Phase 2's direct numbers within ±10%.
+- **Rule P3 — pass iff:** affinity + cap has p95 ≥ 15% lower than round-robin at the same (above-capacity) rate.
+- **Predictions:**
+  - affinity + cap beats round-robin by **15%** at the above rate (borderline) and **5%** at the at-capacity rate;
+  - its prefix hit rate is ≥ 5 points higher than round-robin's;
+  - least-loaded sits between them;
+  - **P3 predicted borderline (50/50).**
+
+**Failure handling.**
+- A failed P1, P2 or P3 is a result, recorded honestly, and the night continues.
+- Stop only on: a self-check failing after one fix (that phase only; Phase 3 needs S2), budget (**3 GPU node-h overnight**), or an unfixable crash.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
@@ -496,7 +581,23 @@ Environment: use a separate virtual environment for the Continuum fork. Pin ever
 - **Real long queries.** A CPU node has 128 cores and 512 GB RAM, enough to generate TPC-H SF100 once. Real queries then take tens of seconds, so injected Redshift-like delays become a cross-check, not the main source of long pauses.
 - **A "remote warehouse" ablation.** Put DuckDB on a small shared CPU job and point the proxy at it over the network. The host is handed off through a file on CFS. This also frees the GPU job's 64 GB for offloaded KV caches. Keep it as an ablation: a database job running for the whole sweep would use too many CPU node-hours.
 
-## 5. Schedule
+## 5. Roadmap (Nov 6, Aryan; replaces the old schedule)
+
+Do NOT start any block without pre-registered rules and Aryan's approval of that block.
+
+| Dates | Work | GPU node-h |
+|---|---|---|
+| Nov 7–8 | Aryan reviews the overnight results; midpoint slide; team doc update | — |
+| Nov 9 | Midpoint. Ask the instructor whether a serving layer for agent workloads fits the scope | — |
+| Nov 10–16 | 3 repeats of every poster point, with error bars; full load curves (6–8 rates); **headline comparison**: naive deployment (full schema, round-robin, stock scheduling) vs combined (shared brief + gateway + affinity routing) on p95, throughput and accuracy; Continuum fork as an external baseline | ~5 |
+| Nov 17–23 | Full 4-GPU node: 4 replicas vs TP=4 vs 2× TP=2; skewed DB popularity (Zipf) to test the load cap; a second model (e.g. Qwen3-14B, TP=2) to check the KV model predicts its limit (needs Aryan's download approval) | ~6–8 |
+| Nov 24–30 | When it loses: gateway overhead at light load; the explore agent under routing; long tool waits (admission idling); admission limit from the KV model vs the best hand-tuned limit; simulator vs real fidelity | ~2 |
+| Dec 1–6 | Poster (problem → time anatomy → 3 mechanisms → headline → scaling → when it loses → what didn't work); repo README with one script per figure | — |
+
+- **If time runs short:** drop the second model first, then the 4-GPU layouts. Keep the repeats, the headline comparison and when-it-loses.
+- **Budget:** the roadmap totals ~13–15 GPU node-h. **Stop and ask Aryan at 20 cumulative GPU node-h counted from Nov 6.**
+
+## 5-old. Schedule (superseded Nov 6 by the roadmap above; kept as written)
 
 | Dates | Work | Done when |
 |---|---|---|
@@ -544,6 +645,8 @@ Constraints:
 - Never leave GPU jobs running unattended.
 
 ## 7. What the poster will claim
+
+*Superseded Nov 6. Poster order: problem → time anatomy → 3 mechanisms (shared brief, gateway, routing) → headline (naive vs combined) → scaling → when it loses → what didn't work (D3 KV retention, D5, the broker, the expert adapter, brief-aware prompting). Earlier versions below are kept as written.*
 
 *Superseded Nov 5. The D2 poster:*
 1. *Where SQL-agent task time goes: decode 90%, DB 3.6%, exploration 53.5% of turns. Plus the memory cliff and program FCFS (characterization, §11).*
