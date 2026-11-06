@@ -572,6 +572,37 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - least-loaded sits between them;
   - **P3 predicted borderline (50/50).**
 
+**Additions Fri Nov 6 2026, morning (Aryan's Part A/B message), written before any Part A data.**
+
+- **A1, S3 amendment, by Aryan after seeing the S3 data.** The S3 reference becomes the **same-job direct cell**: ±10% on p50 and p95.
+  - *Reason:* node-to-node speed varies up to 16%.
+  - *Under it:* S3 attempt 1 is −5.0% / −5.4% and attempt 2 is +6.9% / −0.5%, so **S3 passes**. Phase 3 may run. P3 itself is unchanged.
+- **A2 setup.** Phase 3 as pre-registered:
+  - 2 replicas, compact brief, 380 and 500 per min, round-robin / least-loaded / affinity + cap (cap 1.25);
+  - 8-min measured window (as pre-registered), 1-min warm-up, 3-min drain cap (unfinished tasks counted as unfinished);
+  - within each rate, the policy order alternates.
+- **A2 extra arm (added after the overnight run):** the full-schema brief, round-robin vs affinity + cap, same rates, same design, in its own 2-GPU job.
+- **A2 predictions** (refined from the KV accounting; the original P3 predictions above stand):
+  - *Compact:* ~920 tokens per DB × 11 ≈ 10k tokens (7% of a replica's pool). Every brief fits on both replicas, so affinity saves little KV. **Affinity vs RR p95: −5% at 380, −10% at 500, so P3 most likely NOT MET with compact.** Prefix hit: affinity +2–4 points over RR.
+  - *Full:* ~4.3k tokens per DB × 11 ≈ 47k (34% of the pool) on every replica under RR, vs ~half that under affinity. That frees ~24k tokens (~17% of the pool) per replica. **Affinity vs RR p95: −15% at 380, −30% at 500; P3-style test MET with full.** Prefix hit: affinity +8 points.
+  - *Least-loaded* sits between RR and affinity in both arms.
+- **A3, request-cap baseline (rule pre-registered here).** At 250 per min, in one job: stock vLLM with `--max-num-seqs` 32 and 64 (no gateway, direct) vs "both" (K = 77). Order: reqcap64 → both → reqcap32. 1-min warm-up, 5-min window, 3-min drain cap. Prefix-cache hits reported.
+  - **Rule A3:** "both" p95 ≥ 15% lower than the best request-cap setting's p95, **and** "both" throughput ≥ 95% of the best request-cap setting's. "Best" = the lower p95 of the two.
+  - **Prediction:** a request cap limits *running requests*, not *tasks*. Tasks keep piling up between turns and lose their cached prefixes.
+    - reqcap64: p95 ~350 s, ~140 per min;
+    - reqcap32: p95 ~300 s, ~150 per min, prefix hit ~60%;
+    - both: p95 ~150 s, ~195 per min, prefix hit ~86%.
+    - **A3 predicted MET** (p95 ~ −50%).
+- **A4, collapse point (reported, no rule).** Stock and both at 210 and 230 per min, one job, order stock210 → both210 → both230 → stock230. Same window settings.
+  - **Prediction:** stock keeps up at 210 (~207 per min) and falls behind at 230 (~170 per min, prefix hit < 70%), so its collapse point is ~220 per min. Both stays ~200–210 per min at both rates.
+- **B1 decision table (Aryan, written before Part A data), applied after Part A:**
+  - *A3 met:* "both" (task-level admission + priority) is the gateway in the final system.
+  - *A3 not met:* keep "both", but add the best request-cap as a required baseline everywhere, and state in Status that the gateway's edge is setting the limit automatically.
+  - *P3 met with compact:* final system = compact + both + affinity routing.
+  - *P3 met only with full:* final system = compact + both (no routing); routing gets its own "when it pays off" panel with the full schema.
+  - *Neither:* routing dropped and reported as a negative result; the 4-GPU block becomes TP=4 vs 4 replicas only.
+- **Part A budget:** expected ~1.2 GPU node-h; stop and email at 1.5.
+
 **Failure handling.**
 - A failed P1, P2 or P3 is a result, recorded honestly, and the night continues.
 - Stop only on: a self-check failing after one fix (that phase only; Phase 3 needs S2), budget (**3 GPU node-h overnight**), or an unfixable crash.
