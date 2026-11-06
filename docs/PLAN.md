@@ -534,6 +534,9 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
 **Phase 3: routing on two GPUs** (only if S2 passes). Two vLLM replicas behind the gateway, compact brief, 2 arrival rates (at and above 2× single-GPU capacity), 8 min each.
 - **Policies:** round-robin (per task), least-loaded (fewest active tasks), and DB-affinity with a load cap (each DB is pinned to a replica; spill to the other when the pinned replica has > cap × fair share of active tasks; cap = 1.25).
 - **Self-check S3:** one replica behind the router matches Phase 2's direct numbers within ±10%.
+  - *Addendum (Nov 5 ~23:05 PT, before any Phase 3 run; adds detail only):*
+    - *S3 = job 60891207: one replica, explore agent (as Phase 2), 110 tasks/min, router (affinity) cell first, then a same-job direct cell. Compared with S2's direct numbers (5.05 / 16.99 s) and the same-job direct cell.*
+    - *Phase 3 rates: **380 and 500 tasks/min** = 2 × the simulated single-GPU capacity (190), and ×1.3 above it. Compact brief. A cell order that alternates the policies.*
 - **Rule P3 — pass iff:** affinity + cap has p95 ≥ 15% lower than round-robin at the same (above-capacity) rate.
 - **Predictions:**
   - affinity + cap beats round-robin by **15%** at the above rate (borderline) and **5%** at the at-capacity rate;
