@@ -243,13 +243,14 @@ def d2_sweep(on_dir, off_dir):
     import glob as _g
     if not (_g.glob(os.path.join(on_dir, "*_c*", "tasks.jsonl")) or _g.glob(os.path.join(off_dir, "*_c*", "tasks.jsonl"))):
         print("no sweep data yet"); return
-    arms = [("explore", "#8a8985"), ("full", "#eb6834"), ("lexical", "#2a78d6"), ("oracle", "#1baf7a")]
+    arms = [("explore", "#8a8985"), ("full", "#eb6834"), ("compact", "#6250d6"), ("lexical", "#2a78d6"), ("oracle", "#1baf7a")]
     f, axes = fig(2, w=5.0, h=3.6)
     for ax, (pc, d) in zip(axes, (("on", on_dir), ("off", off_dir))):
         for arm, c in arms:
             xs, ys = [], []
             for conc in (8, 32, 64):
-                t = os.path.join(d, f"{arm}_c{conc}", "tasks.jsonl")
+                dd = f"{SCR}/dbkv/runs/d2sweep/60888614" if (arm == "compact" and pc == "on") else d
+                t = os.path.join(dd, f"{arm}_c{conc}", "tasks.jsonl")
                 if os.path.exists(t):
                     ts = [json.loads(l)["task_s"] for l in open(t)]
                     xs.append(conc); ys.append(np.percentile(ts, 95))
@@ -259,8 +260,36 @@ def d2_sweep(on_dir, off_dir):
         ax.set_xlabel("concurrent agents"); ax.set_ylabel("p95 task time (s)")
         style(ax, f"prefix caching {pc}")
     axes[0].legend(frameon=False, fontsize=8, labelcolor=INK)
-    save(f, "fig_d2_sweep.png", "D2 step 6: 300 BIRD dev questions, frozen agent, A100-40GB.")
+    save(f, "fig_d2_sweep.png", "300 BIRD dev questions, frozen agent, A100-40GB. Step 6 (jobs 60876091/2); compact = Phase 1 (job 60888614, caching on only).")
 
+
+
+def d2_acc_vs_tokens():
+    f, (ax,) = fig(w=6.0, h=4.0)
+    cols = {"explore": "#8a8985", "full": "#eb6834", "compact": "#2a78d6", "lexical": "#2a78d6", "llm": "#2a78d6", "oracle": "#1baf7a"}
+    for arm, lab in D2_ARMS:
+        T, _U = _d2_load(arm)
+        acc = 100 * np.mean([t["correct"] for t in T]); se = 100 * np.sqrt(acc / 100 * (1 - acc / 100) / len(T))
+        tok = np.mean([t["prompt_tokens"] for t in T]) / 1000
+        ax.errorbar([tok], [acc], yerr=[se], fmt="o", color=cols[arm], ms=8, mec=SURFACE, mew=1.5, ecolor=INK2, capsize=3)
+        ax.annotate(lab, (tok, acc), xytext=(6, 4), textcoords="offset points", fontsize=8, color=INK)
+    ax.set_xlabel("prompt tokens per task (thousands)"); ax.set_ylabel("accuracy (%)")
+    style(ax, "Schema briefs: accuracy vs prompt cost")
+    save(f, "fig_d2_acc_vs_tokens.png", "D2 step 5: frozen agent, all 1,534 BIRD dev questions, concurrency 8. Accuracy ± SE.")
+
+
+def priority_test():
+    rows = [("8k × 24", 139.9, 134.7), ("8k × 32", 188.3, 182.7), ("20k × 10", 170.4, 132.7), ("20k × 12", 198.8, 152.9)]
+    f, (ax,) = fig(w=6.0, h=3.6)
+    x = np.arange(len(rows)); w = 0.36
+    ax.bar(x - w / 2 - 0.01, [r[1] for r in rows], w, color="#8a8985", label="stock vLLM (FCFS)", edgecolor=SURFACE)
+    ax.bar(x + w / 2 + 0.01, [r[2] for r in rows], w, color="#2a78d6", label="task-start priority", edgecolor=SURFACE)
+    for i, r in enumerate(rows):
+        ax.text(i + w / 2, r[2] + 3, f"{100 * (r[2] / r[1] - 1):+.0f}%", ha="center", fontsize=8, color=INK)
+    ax.set_xticks(x); ax.set_xticklabels([r[0] for r in rows]); ax.set_ylabel("p95 task time (s)")
+    style(ax, "Ordering by task start cuts p95 above the memory limit")
+    ax.legend(frameon=False, fontsize=8, labelcolor=INK)
+    save(f, "fig_priority_test.png", "Synthetic replayer, real vLLM 0.33 on one A100-40GB, 1 rep (job 60827432). Context × agents, all above the KV limit.")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -277,3 +306,5 @@ if __name__ == "__main__":
     d2_breakdown()
     d2_arms()
     d2_sweep(a.sweep_on, a.sweep_off)
+    d2_acc_vs_tokens()
+    priority_test()
