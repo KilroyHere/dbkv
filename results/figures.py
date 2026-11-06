@@ -312,6 +312,48 @@ def phase2():
     a1.legend(frameon=False, fontsize=7.5, labelcolor=INK)
     save(f, "fig_phase2_gateway.png", "Phase 2: explore agent, Poisson arrivals over 11 BIRD DBs, 1 A100-40GB, 8 min measured, 1 rep (jobs 60891199/60891201). Stock p95 at 250/min is a lower bound.")
 
+
+def part_a():
+    """Load curve (stock vs both, Phase 2 + A4), the A3 request-cap comparison, and A2 routing."""
+    P2 = json.load(open(os.path.join(HERE, "phase2_gateway.json")))
+    a4 = f"{SCR}/dbkv/runs/gw_multi/60912397"; a3 = f"{SCR}/dbkv/runs/gw_multi/60912396"
+    if not os.path.exists(a4):
+        print("no part A data"); return
+    rd = lambda d, c: json.load(open(os.path.join(d, c, "summary.json")))  # noqa: E731
+    pts = {"stock": {}, "both": {}}
+    for k in pts:
+        for r in (110, 190, 250):
+            pts[k][r] = P2[f"{k}|{r}"]
+        for r in (210, 230):
+            pts[k][r] = rd(a4, f"{k}_r{r}")
+    f, (a1, a2) = fig(2, w=5.0, h=3.7)
+    for k, lab, c in (("stock", "stock vLLM", "#8a8985"), ("both", "gateway: admission + priority", "#2a78d6")):
+        rs = sorted(pts[k])
+        a1.plot(rs, [pts[k][r]["throughput_per_min"] for r in rs], "-o", color=c, lw=2, ms=6, mec=SURFACE, mew=1.5, label=lab)
+        a2.plot(rs, [pts[k][r]["p95_s"] for r in rs], "-o", color=c, lw=2, ms=6, mec=SURFACE, mew=1.5, label=lab)
+    a1.plot([100, 260], [100, 260], ls=":", color=INK2, lw=1); a1.text(255, 245, "offered", ha="right", fontsize=7.5, color=INK2)
+    a1.axvline(200, color=INK2, lw=0.8, ls="--"); a1.text(202, 112, "stock collapse ≈ 200/min", fontsize=7.5, color=INK2)
+    a2.set_yscale("log")
+    for a in (a1, a2):
+        a.set_xlabel("task arrival rate (per minute)")
+    a1.set_ylabel("completed tasks per minute"); a2.set_ylabel("p95 task time (s)")
+    style(a1, "Throughput vs offered load"); style(a2, "Tail latency vs offered load")
+    a1.legend(frameon=False, fontsize=7.5, labelcolor=INK)
+    save(f, "fig_load_curve.png", "Explore agent, 1 A100-40GB, 1 rep. 110/190/250: Phase 2 (8-min windows); 210/230: Part A4 (same job, 5-min windows). Stock p95 at 230/250 are lower bounds.")
+    # A3
+    R = {k: rd(a3, f"{k}_r250") for k in ("reqcap64", "reqcap32", "both")}
+    f, (b1, b2) = fig(2, w=4.4, h=3.4)
+    labs = [("reqcap64", "vLLM\n--max-num-seqs 64", "#8a8985"), ("reqcap32", "vLLM\n--max-num-seqs 32", "#8a8985"), ("both", "gateway\nadmission+priority", "#2a78d6")]
+    for ax, key, yl in ((b1, "p95_s", "p95 task time (s)"), (b2, "throughput_per_min", "completed tasks per minute")):
+        v = [R[k][key] for k, _, _ in labs]
+        ax.bar(range(3), v, color=[c for _, _, c in labs], edgecolor=SURFACE, width=0.65)
+        for i, vi in enumerate(v):
+            ax.text(i, vi, f"{vi:.0f}", ha="center", va="bottom", fontsize=8, color=INK)
+        ax.set_xticks(range(3)); ax.set_xticklabels([l for _, l, _ in labs], fontsize=7.5); ax.set_ylabel(yl)
+        style(ax)
+    b1.set_title("Task admission beats a request cap (250/min)", loc="left", fontsize=10, color=INK)
+    save(f, "fig_a3_reqcap.png", "Part A3, one job (60912396), explore agent, 5-min window, 3-min drain cap. Request-cap p95 are lower bounds (364/446 unfinished).")
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--g1", default=os.path.join(HERE, "g1v2b_gap.csv"))
@@ -330,3 +372,4 @@ if __name__ == "__main__":
     d2_acc_vs_tokens()
     priority_test()
     phase2()
+    part_a()
