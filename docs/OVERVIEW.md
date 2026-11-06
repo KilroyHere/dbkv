@@ -105,7 +105,7 @@ Result: [a2_phase3.md](../results/a2_phase3.md) (no figure).
 
 | Label | Plain words | Where its result is |
 |---|---|---|
-| D1 | Not used in this repo (a team-level label) | — |
+| D1 | SQL-aware speculative decoding. Considered Nov 4, not pursued (speculative decoding is out of scope; off in every arm) | — |
 | D2 | Schema-brief direction (Nov 5) | §3.3; [d2_step5.md](../results/d2_step5.md) |
 | D3 | Original direction: keep/offload/drop an agent's KV cache using EXPLAIN's time estimate. Closed by G1 | §4; PLAN §1-old |
 | D4 | Early stopping of hopeless agent tasks. Test 2's rule said pursue; it was not pursued | [t2_summary.md](../results/t2_summary.md) |
