@@ -20,7 +20,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | Item | State |
 |---|---|
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
-| Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. Phase 2: building. Phase 3: needs S2 |
+| Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). Phase 2 grid running (60891199, 60891201). Phase 3: next |
 | **Direction (Nov 5, superseded by the framing above)** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
 | D2 Stage A: brief-aware prompt (Nov 5) | **FAILED the gate; Stage B not run.** Describe calls on brief tables fall 2.17 → 0.64/0.69 per task (gate ≤ 0.3). About 55% of what remains is on tables the lexical brief shows only partially; nudged prose turns rose 0.69 → 2.52, cancelling the saving. Waiting for Aryan (§2e-pre, `results/stage_a.md`) |
@@ -494,6 +494,10 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - *Observed, attempt 1 (job 60889433, 110 tasks/min, direct first then gateway, same server): direct p50 5.12 s / p95 16.64 s / 109.4 per min; gateway 5.68 / 18.29 / 109.6. p50 +10.9% → **FAIL (narrowly)**; p95 +9.9% passes.*
     - *Diagnosis: the gateway's own cost is ~1.6 ms per request (client − server time: 16.6 vs 15.0 ms) and 0.08 ms of measured proxy overhead. The gap is GPU-side: decode 20.45 vs 19.01 ms per token (+7.6%), with more requests in flight (11.8 vs 10.6), on the same tasks and output lengths. That points to cell order and carry-over on the shared server, not the gateway.*
     - *The one fix: reset vLLM's prefix cache between cells and reverse the order (gateway first). Retry is job 60890137.*
+  - *Observed, attempt 2 (job 60890137, fix applied, gateway first): gateway p50 4.83 s / p95 15.76 s / 109.8 per min; direct 5.05 / 16.99 / 109.8. p50 −4.3%, p95 −7.3% → **S2 PASS.***
+    - *The second cell's decode was again slower (19.23 vs 18.42 ms/token), which confirms a position-in-job drift of ~5–8%.*
+    - *Phase 2 jobs run baseline then treatment at each rate (stock→admission, priority→both). So the drift works against the treatment and the 20% P2 test is conservative.*
+    - *Phase 2 submitted: jobs 60891199 (FCFS server) and 60891201 (priority server), K = 77, rates 110/190/250.*
 - **Rule P2 — pass iff, at the above-capacity rate, "both" has:**
   - p95 ≥ 20% lower than stock;
   - throughput (completed tasks per measured minute) ≥ 95% of stock's.
