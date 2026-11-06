@@ -367,13 +367,18 @@ if __name__ == "__main__":
     ap.add_argument("--sweep-on", default=f"{RUNS}/d2sweep/60876091")
     ap.add_argument("--sweep-off", default=f"{RUNS}/d2sweep/60876092")
     a = ap.parse_args()
-    g1(a.g1)
-    g2(a.g2_sf10, a.g2_sf100, os.path.join(HERE, "g2_sf10_summary.json"), os.path.join(HERE, "g2_sf100_summary.json"))
-    g3(a.g3)
-    d2_breakdown()
-    d2_arms()
-    d2_sweep(a.sweep_on, a.sweep_off)
-    d2_acc_vs_tokens()
-    priority_test()
-    phase2()
-    part_a()
+    print("raw run data:", RUNS)
+    jobs = [("g1", lambda: g1(a.g1)),
+            ("g2", lambda: g2(a.g2_sf10, a.g2_sf100, os.path.join(HERE, "g2_sf10_summary.json"),
+                              os.path.join(HERE, "g2_sf100_summary.json"))),
+            ("g3", lambda: g3(a.g3)), ("d2_breakdown", d2_breakdown), ("d2_arms", d2_arms),
+            ("d2_sweep", lambda: d2_sweep(a.sweep_on, a.sweep_off)), ("d2_acc_vs_tokens", d2_acc_vs_tokens),
+            ("priority_test", priority_test), ("phase2", phase2), ("part_a", part_a)]
+    skipped = []
+    for name, fn in jobs:  # each figure independently: a missing raw file skips that figure, not the rest
+        try:
+            fn()
+        except (FileNotFoundError, OSError) as e:
+            skipped.append(name); print(f"skipped {name}: raw data not found ({e.filename or e})")
+    if skipped:
+        print(f"{len(skipped)} figure group(s) skipped; set DBKV_RAW to the runs/ copy (see docs/REPRODUCE.md)")
