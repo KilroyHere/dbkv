@@ -343,7 +343,7 @@ def part_a():
     # A3
     R = {k: rd(a3, f"{k}_r250") for k in ("reqcap64", "reqcap32", "both")}
     f, (b1, b2) = fig(2, w=4.4, h=3.4)
-    labs = [("reqcap64", "vLLM\n--max-num-seqs 64", "#8a8985"), ("reqcap32", "vLLM\n--max-num-seqs 32", "#8a8985"), ("both", "gateway\nadmission+priority", "#2a78d6")]
+    labs = [("reqcap64", "vLLM cap\n64 seqs", "#8a8985"), ("reqcap32", "vLLM cap\n32 seqs", "#8a8985"), ("both", "gateway\nadm.+prio.", "#2a78d6")]
     for ax, key, yl in ((b1, "p95_s", "p95 task time (s)"), (b2, "throughput_per_min", "completed tasks per minute")):
         v = [R[k][key] for k, _, _ in labs]
         ax.bar(range(3), v, color=[c for _, _, c in labs], edgecolor=SURFACE, width=0.65)
