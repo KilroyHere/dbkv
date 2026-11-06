@@ -596,6 +596,9 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - *Observed (job 60912396; `results/a3_reqcap.md`): reqcap64 p95 306 s (lower bound), 130/min, hit 65%; reqcap32 341 s, 118/min; **both 101 s, 197/min, hit 86% → −67% p95, 151% throughput. A3 MET.***
 - **A4, collapse point (reported, no rule).** Stock and both at 210 and 230 per min, one job, order stock210 → both210 → both230 → stock230. Same window settings.
   - **Prediction:** stock keeps up at 210 (~207 per min) and falls behind at 230 (~170 per min, prefix hit < 70%), so its collapse point is ~220 per min. Both stays ~200–210 per min at both rates.
+  - *Observed (job 60912397; `results/a4_collapse.md`):*
+    - *Stock: 176/min at 210 (0.84 of offered, p95 107 s) and 148/min at 230 (p95 ≥ 248 s, prefix hit 70%). With Phase 2's 188/min at 190, **stock's collapse point ≈ 200 per min** (predicted ~220).*
+    - *Both: 189/min at 210 and 200/min at 230 (p95 52 / 69 s, prefix hit 86%).*
 - **B1 decision table (Aryan, written before Part A data), applied after Part A:**
   - *A3 met:* "both" (task-level admission + priority) is the gateway in the final system.
   - *A3 not met:* keep "both", but add the best request-cap as a required baseline everywhere, and state in Status that the gateway's edge is setting the limit automatically.
