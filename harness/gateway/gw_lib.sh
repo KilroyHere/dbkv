@@ -1,5 +1,6 @@
 # Shared shell helpers for slurm/gw_phase2.sbatch and slurm/gw_phase3.sbatch (source after setup/env.sh).
-# Knobs (env, with defaults): GW_WARMUP=120 GW_MEASURE=480 GW_DRAIN=600 GW_SEED=0 GW_K (admission limit).
+# Knobs (env, with defaults): GW_WARMUP=120 GW_MEASURE=480 GW_DRAIN=600 GW_SEED=0 GW_K (admission limit),
+# GW_VLLM_EXTRA (extra vllm serve flags, e.g. "--max-num-seqs 32").
 
 GW_WARMUP=${GW_WARMUP:-120}; GW_MEASURE=${GW_MEASURE:-480}; GW_DRAIN=${GW_DRAIN:-600}; GW_SEED=${GW_SEED:-0}
 BIRD=$DBKV_DATA/bird/dev_20240627
@@ -21,7 +22,7 @@ gw_start_vllm() {  # $1 = GPU index, $2 = port, $3 = log, $4 = "priority" or "fc
   [[ $4 == priority ]] && sched=(--scheduling-policy priority)
   CUDA_VISIBLE_DEVICES=$1 setsid vllm serve "$DBKV_MODEL" --port $2 --gpu-memory-utilization 0.9 \
     --max-model-len 32768 --enable-prefix-caching --enable-prompt-tokens-details --enable-per-request-metrics \
-    --seed 0 --enable-auto-tool-choice --tool-call-parser hermes "${sched[@]}" > "$3" 2>&1 &
+    --seed 0 --enable-auto-tool-choice --tool-call-parser hermes "${sched[@]}" ${GW_VLLM_EXTRA:-} > "$3" 2>&1 &
   local pid=$!
   SERVER_PIDS+=($pid)
   for i in $(seq 1 120); do curl -sf http://127.0.0.1:$2/health >/dev/null && break; kill -0 $pid 2>/dev/null || break; sleep 5; done
@@ -68,4 +69,10 @@ gw_loadgen() {  # $1 = cell dir, $2 = target URL, $3 = rate, $4 = metrics URLs (
       --warmup $GW_WARMUP --measure $GW_MEASURE --drain-cap $GW_DRAIN --seed $GW_SEED \
       --metrics-urls "$murls" --label "$(basename $d)" --out "$d" "$@" > "$d/loadgen.log" 2>&1
   tail -1 "$d/loadgen.log"
+}
+
+gw_stop_vllm() {  # stop every vLLM server started by this job (used to restart with another config)
+  for p in "${SERVER_PIDS[@]}"; do kill -- -$p 2>/dev/null; done
+  for p in "${SERVER_PIDS[@]}"; do while kill -0 $p 2>/dev/null; do sleep 1; done; done
+  SERVER_PIDS=(); sleep 5
 }
