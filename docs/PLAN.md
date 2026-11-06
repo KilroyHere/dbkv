@@ -736,6 +736,19 @@ G1 v1 found the oracle gap ≈ 0% at today's Redshift-like pause lengths. G1 v2 
 
 Continuum (arXiv 2511.02230), InferCept, KVFlow, TOPAS (2608.25523), ThunderAgent, Autellix, NVIDIA Dynamo agent hints, arXiv 2601.12967, the Stony Brook project (github.com/Omkar38/agent-kv-retention), Leis et al. (cardinality errors), and Redshift short-query acceleration. For each, write a one-sentence delta in `docs/prior-art.md`.
 
+### 9c. Cache-aware routing and agent admission (Nov 6, for Phase 3; `docs/prior-art-routing.md`)
+
+- **Already shown:** prefix- and cache-aware routing beats round-robin or random by large factors.
+  - Preble: 1.5–14.5× mean latency, 2–10× p99.
+  - SGLang's cache-aware router: 1.9× throughput, hit rate 20% → 75%.
+  - llm-d: ~170× p90 TTFT vs random near saturation.
+- **Affinity plus a load check is standard,** so **"DB affinity with a load cap" is not new as a mechanism.** Examples: Preble's balance threshold, SGLang's absolute/relative imbalance switch, Dynamo's busy thresholds, SMetric's SLO check.
+- **Open:** whole-task admission plus task-start priority, combined with affinity routing, evaluated for *online multi-turn agents*.
+  - CONCUR does agent-level admission, but on one engine and for offline batches.
+  - Dynamo ships a ThunderAgent admission plugin without published evaluation.
+  - A per-database brief as the affinity key is untested.
+- **Baseline to add in the roadmap's headline comparison:** SGLang's cache-aware policy, reimplemented in our gateway with its defaults (cache_threshold 0.3, balance_abs 64, balance_rel 1.5), next to round-robin and least-loaded. Not added to tonight's pre-registered P3 arms.
+
 ### 9a. Continuum: code located (Nov 4)
 
 - **Paper:** "Continuum: Efficient and Robust Multi-Turn LLM Agent Scheduling with KV Cache Time-to-Live", by Li, He, Mang, Zhang, Mao, Chen, Zhou, Zhang, Cheung, Gonzalez and Stoica. arXiv 2511.02230, v1 Nov 4 2025, with a v2. **The venue is unconfirmed.** Neither arXiv nor Semantic Scholar names one, so §1's "ICLR 2026" needs checking before it goes on the poster.
