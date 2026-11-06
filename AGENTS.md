@@ -25,7 +25,7 @@ The team proposal was a **broker in front of the database** (result caching, que
 
 ## If you're not on Perlmutter
 
-From a GitHub clone (github.com/KilroyHere/dbkv) you can:
+From a GitHub clone (github.com/KilroyHere/dbkv; a normal `git clone` includes the tags `agent-frozen-v1` and `system-frozen-v1`, and in an older clone run `git fetch --tags`) you can:
 - **Read every result:** `results/*.md|json|csv|png`, indexed in [results/README.md](results/README.md).
 - **Rebuild the 4 figures that need only `results/`:** `fig_g1_gap_vs_ratio`, `fig_g1_policies`, `fig_priority_test`, `fig_phase2_gateway`. Run `python results/figures.py` (needs numpy and matplotlib). It rewrites the figures it can build, writes `fig_g2_explain` with only its right panel, and skips the 7 that need raw run files, with a message. The raw files are on Perlmutter (below); set `DBKV_RAW` to a copy of that `runs/` folder to build all 12.
 - **Test the gateway locally against the mock vLLM** (no GPU; `pip install aiohttp numpy`):

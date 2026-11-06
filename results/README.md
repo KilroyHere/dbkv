@@ -1,6 +1,6 @@
 # results/: index
 
-This folder holds small summaries (Markdown, JSON, CSV) and the figures. Raw runs, traces and logs live in Aryan's `$SCRATCH` (`/pscratch/sd/a/ap2568/dbkv`), which teammates can't read. [docs/REPRODUCE.md](../docs/REPRODUCE.md) explains how each file was made and which raw files would have to be copied over.
+This folder holds small summaries (Markdown, JSON, CSV) and the figures. Raw runs, traces and logs live in Aryan's `$SCRATCH` (`/pscratch/sd/a/ap2568/dbkv`), which teammates can't read, except for the raw files the figures need: those are copied to the team-readable `/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/` (35 MB, Nov 6). [docs/REPRODUCE.md](../docs/REPRODUCE.md) explains how each file was made and which raw files would have to be copied over.
 
 Labels (G1–G3, Test 1–3, D2–D5, Phase 1–3, P1–P3, A1–A4, arms, policies, K) are defined in the glossary, [docs/OVERVIEW.md §6](../docs/OVERVIEW.md#6-glossary). The short version:
 - **G1/G2/G3** are the go/no-go gates: oracle simulation, `EXPLAIN` calibration and the KV memory limit.
@@ -55,7 +55,7 @@ Every file in `results/` is listed in one of the tables above or here.
 
 ## Figures: what `figures.py` needs
 
-`python results/figures.py` rebuilds **all** figures in one go and overwrites the committed PNGs. Raw run files are read from `$DBKV_RAW` if set, else from the **team-readable CFS copy `/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/`** (35 MB, copied Nov 6), else `$SCRATCH/dbkv/runs`. The table below names each figure's raw files relative to that runs/ root (written as Aryan's `/pscratch/...` path).
+`python results/figures.py` rebuilds every figure whose inputs it can find (all 12 on Perlmutter; 4 plus G2's right panel from a GitHub clone), overwriting those PNGs and printing a "skipped" line for the rest. Raw run files are read from `$DBKV_RAW` if set, else from the **team-readable CFS copy `/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/`** (35 MB, copied Nov 6), else `$SCRATCH/dbkv/runs`. The table below names each figure's raw files relative to that runs/ root (written as Aryan's `/pscratch/...` path).
 
 | Figure | Function | Built from `results/` alone? | What it reads |
 |---|---|---|---|
@@ -63,7 +63,7 @@ Every file in `results/` is listed in one of the tables above or here.
 | `fig_g1_policies.png` | `g1()` | **Yes** | `results/g1v2b_gap.csv` |
 | `fig_priority_test.png` | `priority_test()` | **Yes** | Nothing: the 4 p95 pairs are hard-coded from `g3_priority_60827432.md` |
 | `fig_phase2_gateway.png` | `phase2()` | **Yes** | `results/phase2_gateway.json` |
-| `fig_g2_explain.png` | `g2()` | **Partly.** The right panel (accuracy) comes from `results/g2_sf10_summary.json` and `results/g2_sf100_summary.json`. The left scatter needs raw data and is silently left empty without it | `/pscratch/sd/a/ap2568/dbkv/runs/g2/60825416/results.csv`, `/pscratch/sd/a/ap2568/dbkv/runs/g2/60826277/results.csv` |
+| `fig_g2_explain.png` | `g2()` | **Partly.** The right panel (accuracy) comes from `results/g2_sf10_summary.json` and `results/g2_sf100_summary.json`. The left scatter needs raw data and is left left empty without it | `/pscratch/sd/a/ap2568/dbkv/runs/g2/60825416/results.csv`, `/pscratch/sd/a/ap2568/dbkv/runs/g2/60826277/results.csv` |
 | `fig_g3_limit.png` | `g3()` | No (prints "no G3 data yet") | `/pscratch/sd/a/ap2568/dbkv/runs/g3/main/rep*/c*_n*_r0/summary.json` and `turns.csv` in the same dirs |
 | `fig_d2_time_breakdown.png` | `d2_breakdown()` | No | `/pscratch/sd/a/ap2568/dbkv/runs/d2/60873599/{explore,full}/`, `.../60873600/lexical/`, `.../60873675/oracle/`, each `tasks.jsonl` + `turns.jsonl` |
 | `fig_d2_arms.png` | `d2_arms()` | No | `/pscratch/sd/a/ap2568/dbkv/runs/d2/60873599/{explore,full}/`, `.../60873600/{compact,lexical}/`, `.../60873675/{llm,oracle}/`, each `tasks.jsonl` + `turns.jsonl` |
