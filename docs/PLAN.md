@@ -491,6 +491,9 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - **both.**
 - **Rates:** 3 arrival rates, below / at / above capacity, chosen from the simulator (addendum).
 - **Self-check S2:** the gateway with no limit and no priority matches direct-to-vLLM p50 and p95 within ±10% at one load point. If it fails after one fix, stop Phase 2 and Phase 3.
+  - *Observed, attempt 1 (job 60889433, 110 tasks/min, direct first then gateway, same server): direct p50 5.12 s / p95 16.64 s / 109.4 per min; gateway 5.68 / 18.29 / 109.6. p50 +10.9% → **FAIL (narrowly)**; p95 +9.9% passes.*
+    - *Diagnosis: the gateway's own cost is ~1.6 ms per request (client − server time: 16.6 vs 15.0 ms) and 0.08 ms of measured proxy overhead. The gap is GPU-side: decode 20.45 vs 19.01 ms per token (+7.6%), with more requests in flight (11.8 vs 10.6), on the same tasks and output lengths. That points to cell order and carry-over on the shared server, not the gateway.*
+    - *The one fix: reset vLLM's prefix cache between cells and reverse the order (gateway first). Retry is job 60890137.*
 - **Rule P2 — pass iff, at the above-capacity rate, "both" has:**
   - p95 ≥ 20% lower than stock;
   - throughput (completed tasks per measured minute) ≥ 95% of stock's.
