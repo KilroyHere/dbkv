@@ -537,6 +537,9 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   - *Addendum (Nov 5 ~23:05 PT, before any Phase 3 run; adds detail only):*
     - *S3 = job 60891207: one replica, explore agent (as Phase 2), 110 tasks/min, router (affinity) cell first, then a same-job direct cell. Compared with S2's direct numbers (5.05 / 16.99 s) and the same-job direct cell.*
     - *Phase 3 rates: **380 and 500 tasks/min** = 2 × the simulated single-GPU capacity (190), and ×1.3 above it. Compact brief. A cell order that alternates the policies.*
+  - *Observed, S3 attempt 1 (job 60891207): router cell p50 5.56 s / p95 17.74 s / 109.9 per min. Against the named reference (S2 direct 5.05 / 16.99): **p50 +10.1% → FAIL by 0.1 pt**; p95 +4.4% passes.*
+    - *Against the same-job direct cell (5.85 / 18.75): −5.0% / −5.4%. That job's direct cell was 16% slower than the S2 job's: node-to-node speed variation exceeds the ±10% tolerance. Gateway overhead 0.08 ms per request.*
+    - *The one fix is a re-measurement, because the cause (node speed) isn't fixable in code: identical retry, job 60892403. The reference is unchanged. If it fails again, Phase 3 stops.*
 - **Rule P3 — pass iff:** affinity + cap has p95 ≥ 15% lower than round-robin at the same (above-capacity) rate.
 - **Predictions:**
   - affinity + cap beats round-robin by **15%** at the above rate (borderline) and **5%** at the at-capacity rate;
