@@ -60,13 +60,18 @@ Results: [d2_step6.md](../results/d2_step6.md), [phase1_shared_brief.md](../resu
 Result: [d2_kv_accounting.md](../results/d2_kv_accounting.md).
 
 ### 3.4 The gateway
-The gateway sits between agents and vLLM. It admits at most K whole tasks at once and tags each request with its task's start time as a priority.
+The gateway sits between agents and vLLM. It admits at most K whole tasks at once and tags each request with its task's start time as a priority. Phase 2 and A3 use the explore agent, so K = 77; the frozen final system uses the compact brief, so K = 72.
 
-- **Phase 2** (explore agent, Poisson arrivals, 250 tasks/min): "both" p95 144 s vs stock ≥ 786 s (−82%); throughput 199 vs 105 tasks/min (1.9×). Admission alone gives −74%, priority alone −45%. Gateway overhead is under 0.3 ms per request, and the GPU is never idle (0%).
+**Why tasks, not requests.** An agent task is a chain of ~6–7 LLM requests with short tool pauses between them. Between turns, the task's conversation (its KV prefix) sits in vLLM's prefix cache, ready for the next turn. Under overload:
+- **Stock vLLM, or a request cap** (`--max-num-seqs`), lets every arrived task keep issuing turns. So hundreds of half-finished tasks interleave. Each one's cached prefix is evicted by the others' before its next turn (prefix hit falls from 86% to 48–65%). Every resumed turn then re-prefills its whole conversation, so the GPU spends its time on recomputation and throughput collapses.
+- **Task-level admission** lets only K tasks be in flight at a time, K being what fits in KV memory, and makes the rest wait at the gateway before their first turn. The admitted tasks keep their prefixes cached (hit 86%) and finish quickly. Task-start priority additionally finishes older tasks first.
+- So the queue moves out of the GPU, where it destroys cache locality, into the gateway, where waiting is free (A3: 197 vs 130 tasks/min; `results/a3_reqcap.md`).
+
+- **Phase 2** (explore agent, Poisson arrivals, 250 tasks/min, 8-min window): "both" p95 144 s vs stock ≥ 786 s ("≥": a lower bound, because 237 stock tasks were still unfinished at the drain cap) (−82%); throughput 199 vs 105 tasks/min (1.9×). Admission alone gives −74%, priority alone −45%. Gateway overhead is under 0.3 ms per request, and the GPU is never idle (0%).
   Result: [phase2_gateway.md](../results/phase2_gateway.md). Figure: [fig_phase2_gateway.png](../results/fig_phase2_gateway.png).
 - **Load curve and collapse point (A4):** stock throughput falls below the arrival rate between 190 and 210 tasks/min (about 200/min). The gateway plateaus at about 190–200/min.
   Result: [a4_collapse.md](../results/a4_collapse.md). Figure: [fig_load_curve.png](../results/fig_load_curve.png).
-- **vs a vLLM request cap (A3,** 250/min, same job): "both" p95 101 s vs `--max-num-seqs 64` 306 s (−67%); throughput 197 vs 130 (151%).
+- **vs a vLLM request cap (A3,** 250/min, same job): "both" p95 101 s vs `--max-num-seqs 64` 306 s (−67%); throughput 197 vs 130 per min (151% *of* the cap's, i.e. +51%). A3's "both" p95 (101 s) is lower than Phase 2's (144 s) because A3 used a 5-min window and a 3-min drain cap, against Phase 2's 8-min window, and ran on a different node. Over-capacity p95 grows with window length, so compare numbers only within one job.
   Result: [a3_reqcap.md](../results/a3_reqcap.md). Figure: [fig_a3_reqcap.png](../results/fig_a3_reqcap.png).
 - **Simulator:** [sim/openloop.py](../sim/openloop.py) predicted a capacity of about 190/min and a p95 cut above 80%.
   Result: [openloop_sim_summary.md](../results/openloop_sim_summary.md).
@@ -91,7 +96,8 @@ Result: [a2_phase3.md](../results/a2_phase3.md) (no figure).
 - **Rates:** 100, 170, 230 and 300 tasks/min (about 0.5×, 0.85×, 1.15× and 1.5× of the collapse point). 2 reps, block order reversed between reps. Script: `slurm/fullrun.sbatch`.
 - **Rules:** H1 ours throughput ≥ 1.5× naive's at 300/min; H2 ours p95 ≤ naive's × 1.10 at 100 and 170/min; H3 ours accuracy ≥ naive's − 2 points. Predictions are written in §2g; do not edit them.
 - **Cost:** about 0.75 GPU node-h (cap 1.1 at `--time 2:15`).
-- **To resume:** Aryan replies "go" to the §2g matrix. Only then submit the 2 jobs, log them in `$SCRATCH/dbkv/logs/jobs.tsv`, and add observed numbers under §2g.
+- **Scope note:** all gateway numbers above use the explore agent (K = 77). The frozen final system (compact brief, K = 72) has not yet been measured under load; that is what Part C does.
+- **To resume:** Aryan replies "go" to the §2g matrix, in the Claude session on Perlmutter (Remote Control `dbkv-perlmutter`) or by email; the session then records it in PLAN Status. Only then submit the 2 jobs, log them in `$SCRATCH/dbkv/logs/jobs.tsv`, and add observed numbers under §2g.
 
 **After Part C,** follow the roadmap in PLAN §5: a 4-GPU block (TP=4 vs 4 replicas), repeats with error bars and full load curves, a skewed-popularity test and a second model, "when it loses" tests, then the poster. Every block needs pre-registered rules and Aryan's approval. Stop and ask at 20 cumulative GPU node-h counted from Nov 6.
 
@@ -111,7 +117,7 @@ Result: [a2_phase3.md](../results/a2_phase3.md) (no figure).
 | Stage A | Nov 5 brief-aware prompt check (PLAN §2e-pre). Failed; Stage B (full rerun) not run | [stage_a.md](../results/stage_a.md) |
 | Step 1–7 | D2's work steps (Nov 5): 1 docs; 2 fix and freeze the agent; 3 prior art; 4 brief generator; 5 full-dev brief comparison (§2c); 6 concurrency sweep (§2d); 7 midpoint figures (done Nov 6, `results/figures.py`) | [d2_step5.md](../results/d2_step5.md), [d2_step6.md](../results/d2_step6.md) |
 | Phase 1–3 | Overnight Nov 5–6 serving tests (§2f): 1 shared brief under load; 2 gateway on 1 GPU; 3 routing on 2 GPUs | [phase1_shared_brief.md](../results/phase1_shared_brief.md), [phase2_gateway.md](../results/phase2_gateway.md), [a2_phase3.md](../results/a2_phase3.md) |
-| P1–P3 | Pass/fail rules of Phases 1–3: P1 not met, P2 met, P3 not met | same as Phases |
+| P1–P3 | Pass/fail rules of Phases 1–3 (PLAN §2f). **P1:** compact brief ≥ +5 accuracy points over explore AND p95 ≤ explore's at 32 and 64 agents (not met). **P2:** at the above-capacity rate, "both" cuts p95 ≥ 20% vs stock with ≥ 95% of stock's throughput (met). **P3:** affinity routing p95 ≥ 15% lower than round-robin (not met) | same as Phases |
 | S2 / S3 | Self-checks that the gateway (S2) and router (S3) don't distort latency vs going direct to vLLM. S2 passed after one fix; S3 passed under amendment A1 | PLAN Status, §2f |
 | A1–A4 | Part A (Nov 6): A1 S3 same-job amendment; A2 Phase 3 run (+ full-schema arm); A3 request-cap baseline (met); A4 collapse point (~200/min) | [a2_phase3.md](../results/a2_phase3.md), [a3_reqcap.md](../results/a3_reqcap.md), [a4_collapse.md](../results/a4_collapse.md) |
 | B1–B3 | B1 decision table choosing the final system; B2 freeze; B3 writing §2g | PLAN Status |

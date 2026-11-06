@@ -14,7 +14,7 @@ dbkv is Aryan Patel's CS 5470 project, done solo, on NERSC Perlmutter.
 ## Current state
 
 1. **Framing:** serving many SQL agents on shared GPUs without changing their answers. Mechanisms change how agents are served, never what they answer.
-2. **Where time goes:** in the real agent's task time, LLM decode is ~90% (89% in the explore arm) and the database is 3.6% (`results/t2_summary.md`, `results/d2_step5.md`).
+2. **Where time goes:** in the real agent's task time, LLM decode is 78–90% (89% in the explore arm) and the database is 3.6% (`results/t2_summary.md`, `results/d2_step5.md`).
 3. **KV memory limit:** `harness/kv_limit.py` predicted 32 / 16 / 6.5 concurrent sessions at 4k / 8k / 20k context, and the measured cliff is right there (`results/g3_summary.md`).
 4. **Gateway:** at 250 tasks/min, admission + task-start priority ("both") cuts p95 by 82% (144 s vs stock ≥786 s) and gives 1.9× throughput (199 vs 105/min). It beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% (`results/phase2_gateway.md`, `results/a3_reqcap.md`).
 5. **Paused at midpoint (Nov 6).** Part C (naive vs ours, full run) is pre-registered in PLAN §2g but not run. It resumes when Aryan replies "go" to the §2g matrix.
