@@ -451,7 +451,7 @@ These were written before any Test 1–3 job ran or any BIRD data was downloaded
   2. **The other ~45% are on fully shown tables, mostly in turns 1–2:** a check-first habit the prompt doesn't remove.
   3. **Removing the "check with describe_table" rule made the model reply with prose plans instead of tool calls:** nudged turns per task 0.69 → 2.52 in (2). That cancels the saved turns, so (2) has no fewer turns than (1). Adding descriptions, (3), halves that effect and gives the only real turn cut (−19%) and a better p95, at −2.7 points accuracy. The text of nudged replies isn't logged, so the exact cause is not yet visible.
 
-### 2f. Overnight Nov 5–6: serving-side rules, pre-registered Thu Nov 5 2026 ~21:40 PT, before any Phase 1–3 job
+### 2f. Overnight Nov 5–6: serving-side rules, pre-registered Thu Nov 5 2026 21:37 PT (commit 99c0995), before any Phase 1–3 job
 
 *Do not edit; add observations below. The simulator's capacity estimates and its predicted p95 per policy for Phase 2 will be **added below as a dated addendum before any Phase 2 GPU run**. That adds predictions only; the rules here don't change.*
 
