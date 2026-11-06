@@ -2,10 +2,10 @@
 
   python results/figures.py            # writes results/fig_*.png from the run dirs below
 
-Inputs (small summaries live in results/; raw runs in $SCRATCH/dbkv/runs):
-  G1: results/g1v2_gap.csv (or --g1 <gap.csv>)
-  G2: $SCRATCH/dbkv/runs/g2/<job>/results.csv for SF10 and SF100
-  G3: $SCRATCH/dbkv/runs/g3/main/rep*/c*_n*_r0/summary.json (+ turns.csv for the full-hit rule)
+Inputs: small summaries in results/; raw run files under RUNS = $DBKV_RAW, else the team-readable CFS copy
+/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs (35 MB, only what these figures need; Nov 6), else
+$SCRATCH/dbkv/runs. E.g. G2: RUNS/g2/<job>/results.csv; G3: RUNS/g3/main/rep*/c*_n*_r0/{summary.json,turns.csv}.
+Writes every results/fig_*.png (overwrites them).
 Palette: reference categorical slots 1-3 (validated all-pairs) for the three contexts; text in ink,
 never in series color; recessive grid. Static PNGs for slides, so no hover layer.
 """
@@ -23,6 +23,10 @@ LIMIT = {4096: 32.4, 8192: 16.2, 20480: 6.5}                        # prediction
 POLICY_COLOR = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]  # slots 1-5 (adjacent bars)
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCR = os.environ.get("SCRATCH", "/pscratch/sd/a/ap2568")
+# Raw run data (only the files figures need). Order: $DBKV_RAW, then the shared CFS copy readable by the
+# m4999 team (/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs), then Aryan's $SCRATCH/dbkv/runs.
+_CFS_RAW = "/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs"
+RUNS = os.environ.get("DBKV_RAW") or (_CFS_RAW if os.path.isdir(_CFS_RAW) else f"{SCR}/dbkv/runs")
 
 
 def style(ax, title=None):
@@ -178,7 +182,7 @@ D2_RUNS = {"explore": "60873599", "full": "60873599", "compact": "60873600", "le
 
 
 def _d2_load(arm):
-    d = f"{SCR}/dbkv/runs/d2/{D2_RUNS[arm]}/{arm}"
+    d = f"{RUNS}/d2/{D2_RUNS[arm]}/{arm}"
     T = [json.loads(l) for l in open(os.path.join(d, "tasks.jsonl"))]
     U = [json.loads(l) for l in open(os.path.join(d, "turns.jsonl"))]
     return T, U
@@ -249,7 +253,7 @@ def d2_sweep(on_dir, off_dir):
         for arm, c in arms:
             xs, ys = [], []
             for conc in (8, 32, 64):
-                dd = f"{SCR}/dbkv/runs/d2sweep/60888614" if (arm == "compact" and pc == "on") else d
+                dd = f"{RUNS}/d2sweep/60888614" if (arm == "compact" and pc == "on") else d
                 t = os.path.join(dd, f"{arm}_c{conc}", "tasks.jsonl")
                 if os.path.exists(t):
                     ts = [json.loads(l)["task_s"] for l in open(t)]
@@ -316,7 +320,7 @@ def phase2():
 def part_a():
     """Load curve (stock vs both, Phase 2 + A4), the A3 request-cap comparison, and A2 routing."""
     P2 = json.load(open(os.path.join(HERE, "phase2_gateway.json")))
-    a4 = f"{SCR}/dbkv/runs/gw_multi/60912397"; a3 = f"{SCR}/dbkv/runs/gw_multi/60912396"
+    a4 = f"{RUNS}/gw_multi/60912397"; a3 = f"{RUNS}/gw_multi/60912396"
     if not os.path.exists(a4):
         print("no part A data"); return
     rd = lambda d, c: json.load(open(os.path.join(d, c, "summary.json")))  # noqa: E731
@@ -357,11 +361,11 @@ def part_a():
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--g1", default=os.path.join(HERE, "g1v2b_gap.csv"))
-    ap.add_argument("--g2-sf10", default=f"{SCR}/dbkv/runs/g2/60825416/results.csv")
-    ap.add_argument("--g2-sf100", default=f"{SCR}/dbkv/runs/g2/60826277/results.csv")
-    ap.add_argument("--g3", default=f"{SCR}/dbkv/runs/g3/main")
-    ap.add_argument("--sweep-on", default=f"{SCR}/dbkv/runs/d2sweep/60876091")
-    ap.add_argument("--sweep-off", default=f"{SCR}/dbkv/runs/d2sweep/60876092")
+    ap.add_argument("--g2-sf10", default=f"{RUNS}/g2/60825416/results.csv")
+    ap.add_argument("--g2-sf100", default=f"{RUNS}/g2/60826277/results.csv")
+    ap.add_argument("--g3", default=f"{RUNS}/g3/main")
+    ap.add_argument("--sweep-on", default=f"{RUNS}/d2sweep/60876091")
+    ap.add_argument("--sweep-off", default=f"{RUNS}/d2sweep/60876092")
     a = ap.parse_args()
     g1(a.g1)
     g2(a.g2_sf10, a.g2_sf100, os.path.join(HERE, "g2_sf10_summary.json"), os.path.join(HERE, "g2_sf100_summary.json"))
