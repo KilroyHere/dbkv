@@ -291,6 +291,27 @@ def priority_test():
     ax.legend(frameon=False, fontsize=8, labelcolor=INK)
     save(f, "fig_priority_test.png", "Synthetic replayer, real vLLM 0.33 on one A100-40GB, 1 rep (job 60827432). Context × agents, all above the KV limit.")
 
+
+def phase2():
+    pth = os.path.join(HERE, "phase2_gateway.json")
+    if not os.path.exists(pth):
+        print("no phase 2 data"); return
+    R = json.load(open(pth))
+    pols = [("stock", "stock vLLM", "#8a8985"), ("priority", "task-start priority", "#eb6834"),
+            ("admission", "admission (K = 77)", "#1baf7a"), ("both", "admission + priority", "#2a78d6")]
+    f, (a1, a2) = fig(2, w=5.0, h=3.7)
+    rates = [110, 190, 250]
+    for k, lab, c in pols:
+        a1.plot(rates, [R[f"{k}|{r}"]["p95_s"] for r in rates], "-o", color=c, lw=2, ms=6, mec=SURFACE, mew=1.5, label=lab)
+        a2.plot(rates, [R[f"{k}|{r}"]["throughput_per_min"] for r in rates], "-o", color=c, lw=2, ms=6, mec=SURFACE, mew=1.5, label=lab)
+    a2.plot(rates, rates, ls=":", color=INK2, lw=1); a2.text(250, 240, "offered load", ha="right", fontsize=7.5, color=INK2)
+    a1.set_yscale("log"); a1.set_ylabel("p95 task time (s)"); a2.set_ylabel("completed tasks per minute")
+    for a in (a1, a2):
+        a.set_xticks(rates); a.set_xlabel("task arrival rate (per minute)")
+    style(a1, "Past capacity, stock collapses"); style(a2, "Admission keeps throughput up")
+    a1.legend(frameon=False, fontsize=7.5, labelcolor=INK)
+    save(f, "fig_phase2_gateway.png", "Phase 2: explore agent, Poisson arrivals over 11 BIRD DBs, 1 A100-40GB, 8 min measured, 1 rep (jobs 60891199/60891201). Stock p95 at 250/min is a lower bound.")
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--g1", default=os.path.join(HERE, "g1v2b_gap.csv"))
@@ -308,3 +329,4 @@ if __name__ == "__main__":
     d2_sweep(a.sweep_on, a.sweep_off)
     d2_acc_vs_tokens()
     priority_test()
+    phase2()
