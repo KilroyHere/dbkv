@@ -780,6 +780,10 @@ Do NOT start any block without pre-registered rules and Aryan's approval of that
 
 ## 6. Compute budget
 
+*`iris`, Sat Nov 7 2026 (before the suffix-decoding / plan-cache tests):*
+- *GPU (m4999_g): **13.6 node-h used of the 45 per-user cap, 31.4 left.***
+- *CPU (m4999): **0.5 used of 10, 9.5 left.***
+
 This is a solo project, so the budget is Aryan's per-user cap: **45 GPU node-hours, about 37 left** (7.7 used as of Nov 3). A 1-GPU shared job costs ¼ node-hour per hour, comes with 16 cores and 64 GB RAM, and is limited to 48 h. A 2-GPU job gets 128 GB at double the charge.
 
 | Phase | Node-hours |
