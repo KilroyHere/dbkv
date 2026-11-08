@@ -736,6 +736,70 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 
 **Budget:** Test S ~0.7 GPU node-h expected (cap 1.0). Test P and building W are CPU only. `iris` Nov 7: GPU 13.6 / 45 used, CPU 0.5 / 10.
 
+### 2i. Plan-cache re-test on CPU (Test P2), pre-registered Sat Nov 7 2026 PT_TIME, commit COMMIT, before any W2 stream exists
+
+*Aryan's decision (Nov 7): before any GPU plan-hint work, re-test plan-cache matching on CPU with a better matcher and a template pool big enough for true (strict) repeat rates. Test P (§2h) stands as recorded. This is the **last matcher iteration**: if §2i fails, the plan cache is closed, and no further matcher variants are run without a new pre-registration agreed with Aryan.*
+
+**Workload W2** (`harness/plancache/`, CPU only):
+- **Template pool, 121 templates:**
+  - All 99 TPC-DS queries. The 30 W templates are kept as they are, including phrasings. t25, t82 and t91 return. The other 69 are new.
+  - All 22 TPC-H queries.
+  - Each new template gets typed question slots (int / year / date / categorical drawn from the tenant) and **4 phrasings**, written in the style of the existing 30 (business wording, column-name wording, terse, verbose).
+  - *Author independence:* the phrasings are written by a builder that sees the query text and the existing 30 templates, but not the matcher, not this section's thresholds and not any Test P error analysis. They are committed before any matcher run on W2.
+  - Gold SQL for new templates is not needed by Test P2. They are not used for agent runs unless a later gold check is done.
+- **Tenants:**
+  - TPC-DS questions go to the 4 W tenants (SF 0.5 / 1 / 2 / 5).
+  - TPC-H questions go to `tpch_sf1` / `tpch_sf10`.
+  - Categorical slot values are drawn from the tenant's data.
+- **Streams:**
+  - 150 questions each, template drawn uniformly from the pool.
+  - Rates are **strict** (template seen anywhere earlier in the stream): 20 / 50 / 80%, realized exactly over every prefix to within ±1 question (new templates: 120 / 75 / 30 of 121).
+  - Seeds: **evaluation** 0, 2, 3, 4 (pooled per rate; 120 non-repeats at r80); **calibration** 1, 5.
+  - No windowed definition this time.
+- **"Template" = what a real plan cache would key on**, i.e. the plan skeleton of the earlier question's executed SQL. The cache knows the template of every earlier question; it never sees the current question's template.
+
+**Matcher M2** (all features computed from the question text and the two schemas only, never from template metadata):
+- **Bag of tokens per question:** lowercase words ([a-z]+, no stop list, as in §2h), plus:
+  - **Typed literal slots.** A regex pass replaces literals with type tokens before tokenizing:
+    - 4-digit 1900–2099 → `<YEAR>`;
+    - ISO / US dates → `<DATE>`;
+    - month names → `<MONTH>`;
+    - US state names or 2-letter codes → `<STATE>`;
+    - quoted strings → `<STR>`;
+    - percentages → `<PCT>`;
+    - other numbers → `<NUM>`.
+  - **Schema-entity tokens.** A lexicon is built automatically from the TPC-DS and TPC-H table and column names:
+    - each name is split on `_`, the table prefix (`ss_`, `cs_`, `l_`, `o_`, …) is dropped, and a trailing `s` is stripped;
+    - a question n-gram (n ≤ 3) that matches a name's word sequence adds the token `E:<table>` or `E:<table>.<column>`;
+    - ambiguous column words add all their matches.
+- **Score:** BM25 (k1 = 1.2, b = 0.75, same IDF as §2h) over earlier questions in the stream, all tenants. The top-1 question's template is the candidate hint.
+- **Margin gating:**
+  - margin = (s1 − s2) / s1, where s1 is the top-1 score and s2 is the best score among earlier questions whose template differs from top-1's (s2 = 0 if there is none);
+  - a hint is given iff s1 ≥ τ **and** margin ≥ m.
+- **Calibration** (seeds 1 and 5, pooled over r20 / r50 / r80):
+  - grid τ over every observed s1 value, m ∈ {0, 0.05, 0.10, …, 0.50};
+  - pick the (τ, m) with the largest repeat recall (hint given and correct) subject to non-repeat false-hint rate ≤ 10%;
+  - ties go to the larger m, then the larger τ.
+  - Fixed after calibration; then evaluation seeds are scored once.
+
+**Rules** (evaluation seeds pooled per rate, at the calibrated (τ, m)):
+- **P1i:** among repeat questions, the hint is given and correct ≥ 80%, at **r80 and r50**.
+- **P2i:** among non-repeat questions, a (necessarily wrong) hint is given ≤ 10%, at **r80 and r50**.
+- **P3i (hint precision):** among all hints given, ≥ 95% have the right template, at r80 and r50. *A wrong hint to a repeat counts here.*
+- **Pass = P1i, P2i and P3i at both r80 and r50.** r20 is reported only.
+- *Prediction: P1i met at r80 (~0.85) and borderline at r50; P2i met at both; P3i met at r80 and borderline at r50. Overall: pass at r80 alone, fail on r50 more likely than not.*
+- **Also reported, no pass/fail:**
+  - the ablation ladder on the same eval streams: §2h BM25 with a threshold only → + typed slots → + schema entities → + margin (each calibrated the same way);
+  - a TPC-DS-only pool (99 templates, same procedure);
+  - per-benchmark breakdown;
+  - the most-confused template pairs.
+
+**Decision:**
+- If §2i passes, the next step is a GPU test of plan hints on W (template-matched hint injected into the agent's first turn, off vs on, accuracy and turns/task). It needs its own pre-registration and Aryan's OK. It would first need gold SQL for any new template used.
+- If §2i fails, the plan cache and plan-guided speculation are closed.
+
+**Budget:** CPU only (srun `shared_interactive` or a CPU job, < 0.05 CPU node-h). No GPU.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
