@@ -24,6 +24,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
 | Part A (Nov 6) | A1: S3 passes under Aryan's same-job amendment. **A2/P3 NOT MET.** **A3 MET.** **A4: stock collapse ≈ 200 tasks/min;** both plateaus at 190–200/min. 1.443 GPU node-h. `results/a2_phase3.md`, `a3_reqcap.md`, `a4_collapse.md` |
+| Tests S + P (Nov 7, §2h) | Pre-registered. arctic-inference installed for suffix decoding. Building W (TPC-DS, 4 tenants) and the DuckDB agent port next |
 | **Project state** | **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.** No GPU jobs after Nov 6. |
 | Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Not run (paused at midpoint)** |
 | Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
@@ -670,6 +671,51 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 **Cost:** 2 jobs × (8 cells × ~10 min + 2 server starts) ≈ 2 × 1.5 h → **~0.75 GPU node-h** (cap 1.1 at `--time 2:15`); stop and email at 1.5. **Not submitted until Aryan's "go".**
 
 *Status note (Aryan, Nov 6): **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.***
+
+### 2h. Suffix decoding (Test S) and plan-cache feasibility (Test P) on a shared best-case workload (pre-registered Sat Nov 7 2026, before any agent run on W)
+
+*Drafted by Mac Claude, approved by Aryan. Do not edit; add observations below.*
+- **Labels:** to avoid clashing with Phase rules P1–P3 and self-checks S2/S3, these rules are named **S1h–S4h** and **P1h/P2h**.
+- **Unchanged:** `agent-frozen-v1` and `system-frozen-v1`. Part C stays paused.
+- **Seen before writing:** nothing from W. W, the DuckDB agent port and every run come after this commit.
+
+**W, the shared workload** (`harness/plancache/`):
+- **Tenants:** 4 TPC-DS DuckDB databases with the same schema and different data, SF 0.5 / 1 / 2 / 5 (DuckDB `tpcds` extension `dsdgen`), opened read-only.
+- **Templates:** ~30 of the 99 TPC-DS queries, spanning simple to complex, each with 1–3 literals made variable within ranges valid for the data. 4 natural-language phrasings per template, with slots.
+- **Gold:** the template SQL with the same parameters, executed on that tenant.
+- **Streams:** JSONL of (tenant, question, gold), fixed seeds. *Repeat rate* = the fraction of questions whose template appeared earlier in the stream: 0 / 20 / 50 / 80% (80% from the Redshift fleet study).
+- **Agent:** `harness/agent_duckdb/`, the frozen agent's loop, prompt, tool interface and decoding (temperature 0, max_tokens 1024, ≤ 15 turns) with a DuckDB tool backend (BIRD-only fields dropped). DuckDB in GPU jobs keeps the §4a caps (16 GB, 8 threads).
+  - One compact TPC-DS brief, built like `harness/brief` compact, shared by all tenants (same schema).
+  - Tagged **`agent-duckdb-v1`** after the smoke cell passes.
+
+**Test S, suffix decoding** (`slurm/spec_suffix.sbatch`, 1 A100-40GB, `gpu&hbm40g`, `--time 4:00`, cap 1.0 node-h):
+- **Arms:** suffix off vs on. The only difference is the server flag `--speculative-config '{"method": "suffix"}'`, with vLLM 0.33 defaults: max tree depth 24 (= `num_speculative_tokens`), max cached requests 10,000 (the cross-request global tree), max spec factor 1.0, min token prob 0.1. Prefix caching on.
+- **Same job; cells:**
+  - A fresh vLLM server per cell, so suffix's global tree and the prefix cache never carry over between cells. `reset_prefix_cache` does not clear the suffix tree.
+  - The arm order alternates by block: off → on in block 1, on → off in block 2, and so on.
+  - Both arms run the same question stream.
+- **Smoke cell first:** 20 questions, c = 1, suffix off. **Abort and report if > 30% of tasks produce no SQL.**
+- **Axis A (concurrency), repeat 80%:** c = 1, 4 (first 150 questions of the r80 stream), 16, 64 (300 questions).
+- **Axis B (repeat rate), c = 4:** 0% and 50% (150 questions each); 80% comes from axis A.
+- **Optional, last, only if time remains:** BIRD with the frozen agent (`agent-frozen-v1` exported), 150 questions, c = 1, off/on.
+- **Speedup** = p50 task time(off) / p50 task time(on), per cell pair.
+- **Rules:**
+  - **S1h (best case exists):** at c = 1, 80% repeats, p50 task time with suffix ≤ 0.75 × off. *Prediction: 0.4–0.6×.* **Kill:** if S1h fails, drop suffix decoding and plan-guided speculation.
+  - **S2h (load boundary):** the smallest c where speedup < 1.05×. *Prediction: between 16 and 64.*
+  - **S3h (repetition dependence):** at c = 4, compare gain = 1 − p50(on)/p50(off) at 0% vs 80% repeats. *Prediction: the 0% gain is about half the 80% gain.* Reported as the ratio gain(0%) / gain(80%).
+  - **S4h (lossless in practice):** pooled over all cells, paired accuracy on vs off within ±1 point, **and** ≥ 95% of tasks with identical final SQL. *Prediction: met.*
+- **Also recorded:** spec-decode counters (drafted / accepted tokens) every 2 s; decode tokens/s per turn type (execute_sql, explore, final answer).
+
+**Test P, plan-cache feasibility** (CPU, in parallel with Test S):
+- **Method:** on W, BM25 over all earlier questions in the stream, from any tenant. The retrieved hint is the top-1 earlier question's template.
+- **P1h:** for repeat questions, top-1 is the same template ≥ 80% of the time.
+- **P2h:** with a score threshold, a non-repeat gets a wrong-template hint ≤ 10% of the time.
+  - *Threshold choice (fixed now):* on a calibration stream (different seed), the threshold is the largest-recall one with non-repeat false-hint rate ≤ 10%. P1h (counting below-threshold repeats as misses) and P2h are judged on the evaluation streams (seed 0) at that threshold, for each repeat rate 20 / 50 / 80%. Both must hold at 80%; the others are reported.
+- *Prediction: both met.*
+- **Unfavourable end, BIRD (reported, no pass/fail):** sqlglot plan skeletons of all 1,534 gold SQLs. Report the share of questions with an earlier same-DB, same-skeleton question, and BM25 top-1 recall of it. *Prediction: ≤ 15% and ≤ 50%.*
+- **Decision:** if P1h and P2h hold, the next step, which needs Aryan's OK, is a GPU test of plan hints and plan-guided speculation on W.
+
+**Budget:** Test S ~0.7 GPU node-h expected (cap 1.0). Test P and building W are CPU only. `iris` Nov 7: GPU 13.6 / 45 used, CPU 0.5 / 10.
 
 ## 3. Go/no-go tests: decide before building the engine change
 
