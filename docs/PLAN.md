@@ -24,7 +24,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
 | Part A (Nov 6) | A1: S3 passes under Aryan's same-job amendment. **A2/P3 NOT MET.** **A3 MET.** **A4: stock collapse ≈ 200 tasks/min;** both plateaus at 190–200/min. 1.443 GPU node-h. `results/a2_phase3.md`, `a3_reqcap.md`, `a4_collapse.md` |
-| Tests S + P (Nov 7, §2h) | Pre-registered. arctic-inference installed for suffix decoding. Building W (TPC-DS, 4 tenants) and the DuckDB agent port next |
+| Tests S + P (Nov 7, §2h) | **Test P done: P2h fails under both repeat definitions, so the plan-hint step is not triggered.** W built (30 templates, 4 TPC-DS tenants). Strict repeat definition infeasible with 30 templates; windowed used (see §2h). Test S: axis A next; axis B held for Aryan |
 | **Project state** | **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.** No GPU jobs after Nov 6. |
 | Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Not run (paused at midpoint)** |
 | Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
@@ -714,6 +714,20 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 - *Prediction: both met.*
 - **Unfavourable end, BIRD (reported, no pass/fail):** sqlglot plan skeletons of all 1,534 gold SQLs. Report the share of questions with an earlier same-DB, same-skeleton question, and BM25 top-1 recall of it. *Prediction: ≤ 15% and ≤ 50%.*
 - **Decision:** if P1h and P2h hold, the next step, which needs Aryan's OK, is a GPU test of plan hints and plan-guided speculation on W.
+- *Deviation found while building W (Nov 7, after this pre-registration):*
+  - *With 30 usable templates, the **strict** repeat definition above (template seen anywhere earlier) cannot produce 0/20/50% streams. A stream holds at most 30 new templates, so strict repeat rate is ≥ 80% over 150 questions and ≥ 90% over 300. My r00 fallback ("not seen in the previous 150") is impossible too.*
+  - *The streams therefore control a **windowed** rate: a repeat is a template seen in the previous 25 questions. Realized windowed rates are 0 / 0.20 / 0.50 / 0.80; every stream is 0.80 strict at 150 questions and 0.90 at 300.*
+  - *Each record carries both flags. Test P was evaluated under both definitions, each with its own calibrated threshold, and both are reported below.*
+- *Observed, Test P (`results/plancache_feasibility.md`; srun 60982198/60982258/60982280; 30 templates t03…t99, 4 phrasings each, tenants SF 0.5/1/2/5):*
+  - *Strict definition (as pre-registered), threshold 31.4, r80 seed 0: **P1h 0.774 (FAIL, needs ≥ 0.80); P2h 0.138 (FAIL, needs ≤ 0.10)**, on only 29 non-repeats.*
+  - *Windowed definition, threshold 22.3, r80: P1h 0.871 (pass); **P2h 0.186 (FAIL)**. P2h also fails at r50 (0.128) and passes at r20 (0.067).*
+  - ***P2h fails under both definitions, so the §2h decision ("next step if P1h and P2h hold") is NOT triggered.***
+  - *Errors are mostly confusions between near-duplicate templates (t62/t99, t12/t20, t03/t42/t55). Top-1 with no threshold is right for 94–95% of repeats.*
+  - *BIRD unfavourable end (report only): 4.8% of questions have an earlier same-DB, same-skeleton question (predicted ≤ 15%), and BM25 top-1 recall of it is 47.3% (predicted ≤ 50%). Both within prediction.*
+  - *Gold check: 0–1.7% empty results (t65, t32), 0 errors. The shared compact TPC-DS brief is ~5,150 tokens.*
+- *Effect on Test S (decided before any Test S data):*
+  - *Axis A (r80 stream) is valid under both definitions (strict ≥ 0.80), so S1h and S2h are unaffected.*
+  - *Axis B (0% / 50%) is **held for Aryan**. Suffix decoding's cross-request tree remembers up to 10,000 earlier requests, not 25, so a windowed "0%" stream still repeats templates within the cell, and S3h would not measure repetition dependence as intended.*
 
 **Budget:** Test S ~0.7 GPU node-h expected (cap 1.0). Test P and building W are CPU only. `iris` Nov 7: GPU 13.6 / 45 used, CPU 0.5 / 10.
 
