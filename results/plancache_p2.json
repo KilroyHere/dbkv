@@ -1,0 +1,1107 @@
+{
+ "pool": {
+  "pool_size": 121,
+  "pool_info": {
+   "pool_size": 121,
+   "by_bench": {
+    "tpch": 22,
+    "tpcds": 99
+   },
+   "modules_found": [
+    "templates_w2_ds_a",
+    "templates_w2_ds_b",
+    "templates_w2_h"
+   ],
+   "modules_missing": [],
+   "origin": {
+    "templates.TEMPLATES": 30,
+    "templates_w2_ds_a": 31,
+    "templates_w2_ds_b": 35,
+    "templates_w2_h": 22,
+    "templates._ALL (returning)": 3
+   },
+   "missing_qnums": {
+    "tpcds": [],
+    "tpch": []
+   },
+   "complete": true
+  }
+ },
+ "stream_summary": {
+  "w2_r20_s0": {
+   "strict_rate": 0.2,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 120,
+   "bench": {
+    "tpcds": 122,
+    "tpch": 28
+   }
+  },
+  "w2_r20_s1": {
+   "strict_rate": 0.2,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 120,
+   "bench": {
+    "tpcds": 120,
+    "tpch": 30
+   }
+  },
+  "w2_r20_s2": {
+   "strict_rate": 0.2,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 120,
+   "bench": {
+    "tpcds": 119,
+    "tpch": 31
+   }
+  },
+  "w2_r20_s3": {
+   "strict_rate": 0.2,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 120,
+   "bench": {
+    "tpcds": 123,
+    "tpch": 27
+   }
+  },
+  "w2_r20_s4": {
+   "strict_rate": 0.2,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 120,
+   "bench": {
+    "tpch": 26,
+    "tpcds": 124
+   }
+  },
+  "w2_r20_s5": {
+   "strict_rate": 0.2,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 120,
+   "bench": {
+    "tpcds": 118,
+    "tpch": 32
+   }
+  },
+  "w2_r50_s0": {
+   "strict_rate": 0.5,
+   "max_prefix_deviation_questions": 0.5,
+   "new_templates": 75,
+   "bench": {
+    "tpcds": 130,
+    "tpch": 20
+   }
+  },
+  "w2_r50_s1": {
+   "strict_rate": 0.5,
+   "max_prefix_deviation_questions": 0.5,
+   "new_templates": 75,
+   "bench": {
+    "tpcds": 130,
+    "tpch": 20
+   }
+  },
+  "w2_r50_s2": {
+   "strict_rate": 0.5,
+   "max_prefix_deviation_questions": 0.5,
+   "new_templates": 75,
+   "bench": {
+    "tpcds": 131,
+    "tpch": 19
+   }
+  },
+  "w2_r50_s3": {
+   "strict_rate": 0.5,
+   "max_prefix_deviation_questions": 0.5,
+   "new_templates": 75,
+   "bench": {
+    "tpcds": 124,
+    "tpch": 26
+   }
+  },
+  "w2_r50_s4": {
+   "strict_rate": 0.5,
+   "max_prefix_deviation_questions": 0.5,
+   "new_templates": 75,
+   "bench": {
+    "tpcds": 125,
+    "tpch": 25
+   }
+  },
+  "w2_r50_s5": {
+   "strict_rate": 0.5,
+   "max_prefix_deviation_questions": 0.5,
+   "new_templates": 75,
+   "bench": {
+    "tpcds": 120,
+    "tpch": 30
+   }
+  },
+  "w2_r80_s0": {
+   "strict_rate": 0.8,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 30,
+   "bench": {
+    "tpcds": 121,
+    "tpch": 29
+   }
+  },
+  "w2_r80_s1": {
+   "strict_rate": 0.8,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 30,
+   "bench": {
+    "tpch": 26,
+    "tpcds": 124
+   }
+  },
+  "w2_r80_s2": {
+   "strict_rate": 0.8,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 30,
+   "bench": {
+    "tpcds": 134,
+    "tpch": 16
+   }
+  },
+  "w2_r80_s3": {
+   "strict_rate": 0.8,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 30,
+   "bench": {
+    "tpcds": 126,
+    "tpch": 24
+   }
+  },
+  "w2_r80_s4": {
+   "strict_rate": 0.8,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 30,
+   "bench": {
+    "tpch": 36,
+    "tpcds": 114
+   }
+  },
+  "w2_r80_s5": {
+   "strict_rate": 0.8,
+   "max_prefix_deviation_questions": 0.8,
+   "new_templates": 30,
+   "bench": {
+    "tpcds": 119,
+    "tpch": 31
+   }
+  }
+ },
+ "M2": {
+  "tau": 37.683818691206994,
+  "m": 0.4,
+  "calibration": {
+   "feasible": true,
+   "n_repeat": 450,
+   "n_nonrepeat": 450,
+   "n_tau": 894,
+   "repeat_recall": 0.6356,
+   "nonrepeat_hint_rate": 0.1
+  },
+  "calibration_rates": [
+   20,
+   50,
+   80
+  ],
+  "calibration_metrics": {
+   "n": 900,
+   "n_repeat": 450,
+   "n_nonrepeat": 450,
+   "n_hints": 333,
+   "P1i_repeat_recall": 0.6356,
+   "P2i_nonrepeat_hint_rate": 0.1,
+   "P3i_hint_precision": 0.8589,
+   "repeat_wrong_hint": 0.0044,
+   "repeat_top1_correct_no_gate": 0.9022,
+   "nonrepeat_any_top1_no_gate": 0.9867
+  },
+  "eval": {
+   "r20": {
+    "n": 600,
+    "n_repeat": 120,
+    "n_nonrepeat": 480,
+    "n_hints": 109,
+    "P1i_repeat_recall": 0.5167,
+    "P2i_nonrepeat_hint_rate": 0.0938,
+    "P3i_hint_precision": 0.5688,
+    "repeat_wrong_hint": 0.0167,
+    "repeat_top1_correct_no_gate": 0.8667,
+    "nonrepeat_any_top1_no_gate": 0.9917
+   },
+   "r50": {
+    "n": 600,
+    "n_repeat": 300,
+    "n_nonrepeat": 300,
+    "n_hints": 205,
+    "P1i_repeat_recall": 0.5667,
+    "P2i_nonrepeat_hint_rate": 0.1133,
+    "P3i_hint_precision": 0.8293,
+    "repeat_wrong_hint": 0.0033,
+    "repeat_top1_correct_no_gate": 0.8833,
+    "nonrepeat_any_top1_no_gate": 0.9867
+   },
+   "r80": {
+    "n": 600,
+    "n_repeat": 480,
+    "n_nonrepeat": 120,
+    "n_hints": 353,
+    "P1i_repeat_recall": 0.7021,
+    "P2i_nonrepeat_hint_rate": 0.1083,
+    "P3i_hint_precision": 0.9547,
+    "repeat_wrong_hint": 0.0063,
+    "repeat_top1_correct_no_gate": 0.9583,
+    "nonrepeat_any_top1_no_gate": 0.9667
+   }
+  }
+ },
+ "verdict": {
+  "r80": {
+   "P1i": false,
+   "P2i": false,
+   "P3i": true
+  },
+  "r50": {
+   "P1i": false,
+   "P2i": false,
+   "P3i": false
+  },
+  "overall": false,
+  "r20_reported_only": {
+   "P1i": false,
+   "P2i": true,
+   "P3i": false
+  }
+ },
+ "per_benchmark": {
+  "r20_tpcds": {
+   "n": 488,
+   "n_repeat": 95,
+   "n_nonrepeat": 393,
+   "n_hints": 87,
+   "P1i_repeat_recall": 0.5053,
+   "P2i_nonrepeat_hint_rate": 0.0967,
+   "P3i_hint_precision": 0.5517,
+   "repeat_wrong_hint": 0.0105,
+   "repeat_top1_correct_no_gate": 0.8947,
+   "nonrepeat_any_top1_no_gate": 0.9924
+  },
+  "r20_tpch": {
+   "n": 112,
+   "n_repeat": 25,
+   "n_nonrepeat": 87,
+   "n_hints": 22,
+   "P1i_repeat_recall": 0.56,
+   "P2i_nonrepeat_hint_rate": 0.0805,
+   "P3i_hint_precision": 0.6364,
+   "repeat_wrong_hint": 0.04,
+   "repeat_top1_correct_no_gate": 0.76,
+   "nonrepeat_any_top1_no_gate": 0.9885
+  },
+  "r50_tpcds": {
+   "n": 510,
+   "n_repeat": 266,
+   "n_nonrepeat": 244,
+   "n_hints": 177,
+   "P1i_repeat_recall": 0.5602,
+   "P2i_nonrepeat_hint_rate": 0.1107,
+   "P3i_hint_precision": 0.8418,
+   "repeat_wrong_hint": 0.0038,
+   "repeat_top1_correct_no_gate": 0.891,
+   "nonrepeat_any_top1_no_gate": 0.9836
+  },
+  "r50_tpch": {
+   "n": 90,
+   "n_repeat": 34,
+   "n_nonrepeat": 56,
+   "n_hints": 28,
+   "P1i_repeat_recall": 0.6176,
+   "P2i_nonrepeat_hint_rate": 0.125,
+   "P3i_hint_precision": 0.75,
+   "repeat_wrong_hint": 0.0,
+   "repeat_top1_correct_no_gate": 0.8235,
+   "nonrepeat_any_top1_no_gate": 1.0
+  },
+  "r80_tpcds": {
+   "n": 495,
+   "n_repeat": 395,
+   "n_nonrepeat": 100,
+   "n_hints": 291,
+   "P1i_repeat_recall": 0.6962,
+   "P2i_nonrepeat_hint_rate": 0.13,
+   "P3i_hint_precision": 0.945,
+   "repeat_wrong_hint": 0.0076,
+   "repeat_top1_correct_no_gate": 0.957,
+   "nonrepeat_any_top1_no_gate": 0.97
+  },
+  "r80_tpch": {
+   "n": 105,
+   "n_repeat": 85,
+   "n_nonrepeat": 20,
+   "n_hints": 62,
+   "P1i_repeat_recall": 0.7294,
+   "P2i_nonrepeat_hint_rate": 0.0,
+   "P3i_hint_precision": 1.0,
+   "repeat_wrong_hint": 0.0,
+   "repeat_top1_correct_no_gate": 0.9647,
+   "nonrepeat_any_top1_no_gate": 0.95
+  }
+ },
+ "confusions": {
+  "wrong_hints_given_pairs_unordered": [
+   [
+    "t50",
+    "t81",
+    5
+   ],
+   [
+    "t34",
+    "t73",
+    4
+   ],
+   [
+    "t62",
+    "t99",
+    4
+   ],
+   [
+    "h10",
+    "h13",
+    3
+   ],
+   [
+    "t02",
+    "t59",
+    3
+   ],
+   [
+    "t07",
+    "t26",
+    3
+   ],
+   [
+    "t13",
+    "t48",
+    3
+   ],
+   [
+    "t37",
+    "t82",
+    3
+   ],
+   [
+    "t46",
+    "t68",
+    3
+   ],
+   [
+    "t53",
+    "t63",
+    3
+   ],
+   [
+    "t94",
+    "t95",
+    3
+   ],
+   [
+    "h17",
+    "h19",
+    2
+   ],
+   [
+    "t04",
+    "t11",
+    2
+   ],
+   [
+    "t05",
+    "t77",
+    2
+   ],
+   [
+    "t10",
+    "t69",
+    2
+   ]
+  ],
+  "wrong_hints_to_repeats_true_hinted": [
+   [
+    "h17",
+    "h19",
+    1
+   ],
+   [
+    "t11",
+    "t74",
+    1
+   ],
+   [
+    "t26",
+    "t07",
+    1
+   ],
+   [
+    "t48",
+    "t13",
+    1
+   ],
+   [
+    "t56",
+    "t60",
+    1
+   ],
+   [
+    "t88",
+    "t73",
+    1
+   ]
+  ],
+  "wrong_hints_to_nonrepeats_true_hinted": [
+   [
+    "t50",
+    "t81",
+    4
+   ],
+   [
+    "h13",
+    "h10",
+    3
+   ],
+   [
+    "t63",
+    "t53",
+    3
+   ],
+   [
+    "t02",
+    "t59",
+    2
+   ],
+   [
+    "t04",
+    "t11",
+    2
+   ],
+   [
+    "t26",
+    "t07",
+    2
+   ],
+   [
+    "t34",
+    "t73",
+    2
+   ],
+   [
+    "t57",
+    "t89",
+    2
+   ],
+   [
+    "t62",
+    "t99",
+    2
+   ],
+   [
+    "t68",
+    "t46",
+    2
+   ],
+   [
+    "t69",
+    "t10",
+    2
+   ],
+   [
+    "t73",
+    "t34",
+    2
+   ],
+   [
+    "t77",
+    "t05",
+    2
+   ],
+   [
+    "t82",
+    "t37",
+    2
+   ],
+   [
+    "t90",
+    "t88",
+    2
+   ]
+  ],
+  "top1_confusions_repeats_no_gate_unordered": [
+   [
+    "t56",
+    "t60",
+    5
+   ],
+   [
+    "t34",
+    "t73",
+    4
+   ],
+   [
+    "h17",
+    "h19",
+    2
+   ],
+   [
+    "t11",
+    "t74",
+    2
+   ],
+   [
+    "t38",
+    "t87",
+    2
+   ],
+   [
+    "t47",
+    "t57",
+    2
+   ],
+   [
+    "h01",
+    "h06",
+    1
+   ],
+   [
+    "h03",
+    "h05",
+    1
+   ],
+   [
+    "h03",
+    "h09",
+    1
+   ],
+   [
+    "h04",
+    "h12",
+    1
+   ],
+   [
+    "h05",
+    "h12",
+    1
+   ],
+   [
+    "h05",
+    "t66",
+    1
+   ],
+   [
+    "h06",
+    "h17",
+    1
+   ],
+   [
+    "h06",
+    "t92",
+    1
+   ],
+   [
+    "h10",
+    "h15",
+    1
+   ]
+  ],
+  "n_wrong_hints_given": 98,
+  "n_cross_benchmark_wrong_hints": 0
+ },
+ "ladder": {
+  "L0 \u00a72h BM25 + threshold": {
+   "tau": 38.21230069129669,
+   "m": 0.0,
+   "calibration": {
+    "feasible": true,
+    "n_repeat": 450,
+    "n_nonrepeat": 450,
+    "n_tau": 894,
+    "repeat_recall": 0.5689,
+    "nonrepeat_hint_rate": 0.0978
+   },
+   "calibration_rates": [
+    20,
+    50,
+    80
+   ],
+   "calibration_metrics": {
+    "n": 900,
+    "n_repeat": 450,
+    "n_nonrepeat": 450,
+    "n_hints": 316,
+    "P1i_repeat_recall": 0.5689,
+    "P2i_nonrepeat_hint_rate": 0.0978,
+    "P3i_hint_precision": 0.8101,
+    "repeat_wrong_hint": 0.0356,
+    "repeat_top1_correct_no_gate": 0.8578,
+    "nonrepeat_any_top1_no_gate": 0.9867
+   },
+   "eval": {
+    "r20": {
+     "n": 600,
+     "n_repeat": 120,
+     "n_nonrepeat": 480,
+     "n_hints": 124,
+     "P1i_repeat_recall": 0.4583,
+     "P2i_nonrepeat_hint_rate": 0.1313,
+     "P3i_hint_precision": 0.4435,
+     "repeat_wrong_hint": 0.05,
+     "repeat_top1_correct_no_gate": 0.825,
+     "nonrepeat_any_top1_no_gate": 0.9917
+    },
+    "r50": {
+     "n": 600,
+     "n_repeat": 300,
+     "n_nonrepeat": 300,
+     "n_hints": 178,
+     "P1i_repeat_recall": 0.4733,
+     "P2i_nonrepeat_hint_rate": 0.0833,
+     "P3i_hint_precision": 0.7978,
+     "repeat_wrong_hint": 0.0367,
+     "repeat_top1_correct_no_gate": 0.8567,
+     "nonrepeat_any_top1_no_gate": 0.9867
+    },
+    "r80": {
+     "n": 600,
+     "n_repeat": 480,
+     "n_nonrepeat": 120,
+     "n_hints": 314,
+     "P1i_repeat_recall": 0.6125,
+     "P2i_nonrepeat_hint_rate": 0.075,
+     "P3i_hint_precision": 0.9363,
+     "repeat_wrong_hint": 0.0229,
+     "repeat_top1_correct_no_gate": 0.9458,
+     "nonrepeat_any_top1_no_gate": 0.9667
+    }
+   }
+  },
+  "L1 + typed slots": {
+   "tau": 39.83537630471181,
+   "m": 0.0,
+   "calibration": {
+    "feasible": true,
+    "n_repeat": 450,
+    "n_nonrepeat": 450,
+    "n_tau": 894,
+    "repeat_recall": 0.5622,
+    "nonrepeat_hint_rate": 0.1
+   },
+   "calibration_rates": [
+    20,
+    50,
+    80
+   ],
+   "calibration_metrics": {
+    "n": 900,
+    "n_repeat": 450,
+    "n_nonrepeat": 450,
+    "n_hints": 316,
+    "P1i_repeat_recall": 0.5622,
+    "P2i_nonrepeat_hint_rate": 0.1,
+    "P3i_hint_precision": 0.8006,
+    "repeat_wrong_hint": 0.04,
+    "repeat_top1_correct_no_gate": 0.8578,
+    "nonrepeat_any_top1_no_gate": 0.9867
+   },
+   "eval": {
+    "r20": {
+     "n": 600,
+     "n_repeat": 120,
+     "n_nonrepeat": 480,
+     "n_hints": 120,
+     "P1i_repeat_recall": 0.45,
+     "P2i_nonrepeat_hint_rate": 0.125,
+     "P3i_hint_precision": 0.45,
+     "repeat_wrong_hint": 0.05,
+     "repeat_top1_correct_no_gate": 0.8167,
+     "nonrepeat_any_top1_no_gate": 0.9917
+    },
+    "r50": {
+     "n": 600,
+     "n_repeat": 300,
+     "n_nonrepeat": 300,
+     "n_hints": 176,
+     "P1i_repeat_recall": 0.47,
+     "P2i_nonrepeat_hint_rate": 0.0833,
+     "P3i_hint_precision": 0.8011,
+     "repeat_wrong_hint": 0.0333,
+     "repeat_top1_correct_no_gate": 0.8467,
+     "nonrepeat_any_top1_no_gate": 0.9867
+    },
+    "r80": {
+     "n": 600,
+     "n_repeat": 480,
+     "n_nonrepeat": 120,
+     "n_hints": 308,
+     "P1i_repeat_recall": 0.6021,
+     "P2i_nonrepeat_hint_rate": 0.0667,
+     "P3i_hint_precision": 0.9383,
+     "repeat_wrong_hint": 0.0229,
+     "repeat_top1_correct_no_gate": 0.9417,
+     "nonrepeat_any_top1_no_gate": 0.9667
+    }
+   }
+  },
+  "L2 + schema entities": {
+   "tau": 72.89772904356214,
+   "m": 0.0,
+   "calibration": {
+    "feasible": true,
+    "n_repeat": 450,
+    "n_nonrepeat": 450,
+    "n_tau": 894,
+    "repeat_recall": 0.4889,
+    "nonrepeat_hint_rate": 0.1
+   },
+   "calibration_rates": [
+    20,
+    50,
+    80
+   ],
+   "calibration_metrics": {
+    "n": 900,
+    "n_repeat": 450,
+    "n_nonrepeat": 450,
+    "n_hints": 274,
+    "P1i_repeat_recall": 0.4889,
+    "P2i_nonrepeat_hint_rate": 0.1,
+    "P3i_hint_precision": 0.8029,
+    "repeat_wrong_hint": 0.02,
+    "repeat_top1_correct_no_gate": 0.9022,
+    "nonrepeat_any_top1_no_gate": 0.9867
+   },
+   "eval": {
+    "r20": {
+     "n": 600,
+     "n_repeat": 120,
+     "n_nonrepeat": 480,
+     "n_hints": 104,
+     "P1i_repeat_recall": 0.4417,
+     "P2i_nonrepeat_hint_rate": 0.1021,
+     "P3i_hint_precision": 0.5096,
+     "repeat_wrong_hint": 0.0167,
+     "repeat_top1_correct_no_gate": 0.8667,
+     "nonrepeat_any_top1_no_gate": 0.9917
+    },
+    "r50": {
+     "n": 600,
+     "n_repeat": 300,
+     "n_nonrepeat": 300,
+     "n_hints": 148,
+     "P1i_repeat_recall": 0.4167,
+     "P2i_nonrepeat_hint_rate": 0.0633,
+     "P3i_hint_precision": 0.8446,
+     "repeat_wrong_hint": 0.0133,
+     "repeat_top1_correct_no_gate": 0.8833,
+     "nonrepeat_any_top1_no_gate": 0.9867
+    },
+    "r80": {
+     "n": 600,
+     "n_repeat": 480,
+     "n_nonrepeat": 120,
+     "n_hints": 269,
+     "P1i_repeat_recall": 0.5396,
+     "P2i_nonrepeat_hint_rate": 0.025,
+     "P3i_hint_precision": 0.9628,
+     "repeat_wrong_hint": 0.0146,
+     "repeat_top1_correct_no_gate": 0.9583,
+     "nonrepeat_any_top1_no_gate": 0.9667
+    }
+   }
+  },
+  "L3 + margin (= M2)": {
+   "tau": 37.683818691206994,
+   "m": 0.4,
+   "calibration": {
+    "feasible": true,
+    "n_repeat": 450,
+    "n_nonrepeat": 450,
+    "n_tau": 894,
+    "repeat_recall": 0.6356,
+    "nonrepeat_hint_rate": 0.1
+   },
+   "calibration_rates": [
+    20,
+    50,
+    80
+   ],
+   "calibration_metrics": {
+    "n": 900,
+    "n_repeat": 450,
+    "n_nonrepeat": 450,
+    "n_hints": 333,
+    "P1i_repeat_recall": 0.6356,
+    "P2i_nonrepeat_hint_rate": 0.1,
+    "P3i_hint_precision": 0.8589,
+    "repeat_wrong_hint": 0.0044,
+    "repeat_top1_correct_no_gate": 0.9022,
+    "nonrepeat_any_top1_no_gate": 0.9867
+   },
+   "eval": {
+    "r20": {
+     "n": 600,
+     "n_repeat": 120,
+     "n_nonrepeat": 480,
+     "n_hints": 109,
+     "P1i_repeat_recall": 0.5167,
+     "P2i_nonrepeat_hint_rate": 0.0938,
+     "P3i_hint_precision": 0.5688,
+     "repeat_wrong_hint": 0.0167,
+     "repeat_top1_correct_no_gate": 0.8667,
+     "nonrepeat_any_top1_no_gate": 0.9917
+    },
+    "r50": {
+     "n": 600,
+     "n_repeat": 300,
+     "n_nonrepeat": 300,
+     "n_hints": 205,
+     "P1i_repeat_recall": 0.5667,
+     "P2i_nonrepeat_hint_rate": 0.1133,
+     "P3i_hint_precision": 0.8293,
+     "repeat_wrong_hint": 0.0033,
+     "repeat_top1_correct_no_gate": 0.8833,
+     "nonrepeat_any_top1_no_gate": 0.9867
+    },
+    "r80": {
+     "n": 600,
+     "n_repeat": 480,
+     "n_nonrepeat": 120,
+     "n_hints": 353,
+     "P1i_repeat_recall": 0.7021,
+     "P2i_nonrepeat_hint_rate": 0.1083,
+     "P3i_hint_precision": 0.9547,
+     "repeat_wrong_hint": 0.0063,
+     "repeat_top1_correct_no_gate": 0.9583,
+     "nonrepeat_any_top1_no_gate": 0.9667
+    }
+   }
+  }
+ },
+ "tpcds_only": {
+  "M2": {
+   "tau": 25.613480301891496,
+   "m": 0.45,
+   "calibration": {
+    "feasible": true,
+    "n_repeat": 390,
+    "n_nonrepeat": 210,
+    "n_tau": 596,
+    "repeat_recall": 0.6769,
+    "nonrepeat_hint_rate": 0.0952
+   },
+   "calibration_rates": [
+    50,
+    80
+   ],
+   "calibration_metrics": {
+    "n": 600,
+    "n_repeat": 390,
+    "n_nonrepeat": 210,
+    "n_hints": 288,
+    "P1i_repeat_recall": 0.6769,
+    "P2i_nonrepeat_hint_rate": 0.0952,
+    "P3i_hint_precision": 0.9167,
+    "repeat_wrong_hint": 0.0103,
+    "repeat_top1_correct_no_gate": 0.8897,
+    "nonrepeat_any_top1_no_gate": 0.981
+   },
+   "eval": {
+    "r50": {
+     "n": 600,
+     "n_repeat": 300,
+     "n_nonrepeat": 300,
+     "n_hints": 191,
+     "P1i_repeat_recall": 0.5467,
+     "P2i_nonrepeat_hint_rate": 0.08,
+     "P3i_hint_precision": 0.8586,
+     "repeat_wrong_hint": 0.01,
+     "repeat_top1_correct_no_gate": 0.8833,
+     "nonrepeat_any_top1_no_gate": 0.9867
+    },
+    "r80": {
+     "n": 600,
+     "n_repeat": 480,
+     "n_nonrepeat": 120,
+     "n_hints": 385,
+     "P1i_repeat_recall": 0.775,
+     "P2i_nonrepeat_hint_rate": 0.0917,
+     "P3i_hint_precision": 0.9662,
+     "repeat_wrong_hint": 0.0042,
+     "repeat_top1_correct_no_gate": 0.9542,
+     "nonrepeat_any_top1_no_gate": 0.9667
+    }
+   }
+  },
+  "infeasible": {
+   "w2ds_r20_s0": "needs ~120 new templates, pool has 99",
+   "w2ds_r20_s1": "needs ~120 new templates, pool has 99",
+   "w2ds_r20_s2": "needs ~120 new templates, pool has 99",
+   "w2ds_r20_s3": "needs ~120 new templates, pool has 99",
+   "w2ds_r20_s4": "needs ~120 new templates, pool has 99",
+   "w2ds_r20_s5": "needs ~120 new templates, pool has 99"
+  },
+  "would_pass": {
+   "r50": {
+    "P1i": false,
+    "P2i": true,
+    "P3i": false
+   },
+   "r80": {
+    "P1i": false,
+    "P2i": true,
+    "P3i": true
+   }
+  }
+ },
+ "lexicon": {
+  "n_sequences": 301,
+  "n_entities": 517,
+  "n_tables": 31,
+  "sources": [
+   "/pscratch/sd/a/ap2568/dbkv/tenants/tpcds_sf1.duckdb",
+   "/pscratch/sd/a/ap2568/dbkv/tpch/tpch_sf1.duckdb"
+  ]
+ },
+ "token_examples": [
+  {
+   "question": "Store brand revenue, February 2000, manager 34: year, brand id, brand, ext price. Highest first, 100 rows.",
+   "slots": [
+    "store",
+    "brand",
+    "revenue",
+    "<MONTH>",
+    "<YEAR>",
+    "manager",
+    "<NUM>",
+    "year",
+    "brand",
+    "id",
+    "brand",
+    "ext",
+    "price",
+    "highest",
+    "first",
+    "<NUM>",
+    "rows"
+   ],
+   "entities": [
+    "E:store",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:call_center.cc_manager",
+    "E:store.s_manager",
+    "E:web_site.web_manager",
+    "E:date_dim.d_year",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:item.i_brand_id"
+   ]
+  },
+  {
+   "question": "Store brand revenue, January 1998, manager 81: year, brand id, brand, ext price. Highest first, 100 rows.",
+   "slots": [
+    "store",
+    "brand",
+    "revenue",
+    "<MONTH>",
+    "<YEAR>",
+    "manager",
+    "<NUM>",
+    "year",
+    "brand",
+    "id",
+    "brand",
+    "ext",
+    "price",
+    "highest",
+    "first",
+    "<NUM>",
+    "rows"
+   ],
+   "entities": [
+    "E:store",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:call_center.cc_manager",
+    "E:store.s_manager",
+    "E:web_site.web_manager",
+    "E:date_dim.d_year",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:item.i_brand_id"
+   ]
+  },
+  {
+   "question": "What did each brand under manager 20 sell in our stores in March 1999? Report year, brand id, brand and extended sales, sorted by year, then sales high to low, then brand id; top 100.",
+   "slots": [
+    "what",
+    "did",
+    "each",
+    "brand",
+    "under",
+    "manager",
+    "<NUM>",
+    "sell",
+    "in",
+    "our",
+    "stores",
+    "in",
+    "<MONTH>",
+    "<YEAR>",
+    "report",
+    "year",
+    "brand",
+    "id",
+    "brand",
+    "and",
+    "extended",
+    "sales",
+    "sorted",
+    "by",
+    "year",
+    "then",
+    "sales",
+    "high",
+    "to",
+    "low",
+    "then",
+    "brand",
+    "id",
+    "top",
+    "<NUM>"
+   ],
+   "entities": [
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:call_center.cc_manager",
+    "E:store.s_manager",
+    "E:web_site.web_manager",
+    "E:store",
+    "E:date_dim.d_year",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:date_dim.d_year",
+    "E:item.i_brand",
+    "E:part.p_brand",
+    "E:item.i_brand_id",
+    "E:item.i_brand_id"
+   ]
+  }
+ ]
+}

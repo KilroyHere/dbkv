@@ -24,7 +24,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
 | Part A (Nov 6) | A1: S3 passes under Aryan's same-job amendment. **A2/P3 NOT MET.** **A3 MET.** **A4: stock collapse ≈ 200 tasks/min;** both plateaus at 190–200/min. 1.443 GPU node-h. `results/a2_phase3.md`, `a3_reqcap.md`, `a4_collapse.md` |
-| Tests S + P (Nov 7, §2h) | **Test P done: P2h fails under both repeat definitions, so the plan-hint step is not triggered.** Test S: smoke passed (0/20 no-SQL); job 60982784 runs axis A + axis B (amended by Aryan: true-0% vs 80%, 30 q, c=4) + BIRD ref. Plan-cache re-test (§2i, CPU, 121 templates, strict rates) pre-registered; building W2 |
+| Tests S + P (Nov 7, §2h, §2i) | **Plan cache closed: Test P (§2h) and the CPU re-test P2 (§2i, 121 templates, strict rates) both fail** (P2 r80 recall 0.70, false-hint 0.11). Test S: smoke passed; job 60982784 running axis A + axis B (true-0% vs 80%, 30 q, c=4, amended by Aryan) + BIRD ref |
 | **Project state** | **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.** No GPU jobs after Nov 6. |
 | Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Not run (paused at midpoint)** |
 | Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
@@ -799,6 +799,18 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 - If §2i fails, the plan cache and plan-guided speculation are closed.
 
 **Budget:** CPU only (srun `shared_interactive` or a CPU job, < 0.05 CPU node-h). No GPU.
+- *Implementation choices, made by the builder before scoring, where §2i left them open:*
+  - *Regex order is DATE → YEAR → MONTH → STATE → STR → PCT → NUM, so that a year inside a date is not tagged on its own. State codes match uppercase only.*
+  - *Position 0 counts as a non-repeat that never gets a hint.*
+  - *L0–L2 of the ablation calibrate τ only, with m = 0.*
+  - *The TPC-DS-only r20 stream is infeasible (it needs 120 new templates; TPC-DS has 99), so the TPC-DS-only calibration pools r50 and r80.*
+- *Observed (`results/plancache_p2.md`; srun 60982996; templates committed at 674b4d1 before any matcher run on W2):*
+  - *Calibrated τ = 37.7, m = 0.40.*
+  - ***r80: P1i 0.702 (FAIL), P2i 0.108 (FAIL), P3i 0.955 (pass). r50: P1i 0.567 (FAIL), P2i 0.113 (FAIL), P3i 0.829 (FAIL). Overall: FAIL. Per the decision above, the plan cache and plan-guided speculation are closed.***
+  - *With no gate, top-1 is the right template for 96% (r80) and 88% (r50) of repeats. Gating cannot separate those from non-repeats whose nearest neighbour is a sibling template. 98 wrong hints, none across benchmarks; top pairs t50/t81, t34/t73, t62/t99, h10/h13.*
+  - *Ablation (r80 P1i / P2i): L0 0.613 / 0.075; + typed slots 0.602 / 0.067; + entities 0.540 / 0.025; + margin 0.702 / 0.108. Only the margin step raised recall, and it raised the false-hint rate with it.*
+  - *TPC-DS-only pool, report only: r80 0.775 / 0.092 / 0.966, r50 0.547 / 0.080 / 0.859. It would also fail. TPC-H alone at r80: 0.729 / 0.000 / 1.000.*
+  - *Prediction check: P1i was predicted ≈ 0.85 at r80 (observed 0.70); P2i was predicted met (it missed narrowly at both rates); the overall failure on r50 was predicted.*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
