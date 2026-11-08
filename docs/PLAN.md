@@ -672,7 +672,7 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 
 *Status note (Aryan, Nov 6): **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.***
 
-### 2h. Suffix decoding (Test S) and plan-cache feasibility (Test P) on a shared best-case workload (pre-registered Sat Nov 7 2026, before any agent run on W)
+### 2h. Suffix decoding (Test S) and plan-cache feasibility (Test P) on a shared best-case workload (pre-registered Sat Nov 7 2026 16:06 PT, commit 357ff09, before any agent run on W)
 
 *Drafted by Mac Claude, approved by Aryan. Do not edit; add observations below.*
 - **Labels:** to avoid clashing with Phase rules P1–P3 and self-checks S2/S3, these rules are named **S1h–S4h** and **P1h/P2h**.
