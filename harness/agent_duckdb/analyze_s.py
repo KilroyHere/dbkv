@@ -8,7 +8,7 @@ turn_type, spec-decode acceptance from counter deltas (metrics.jsonl). Per arm p
 speedup = p50(off) / p50(on), gain = 1 - p50(on) / p50(off). Rules:
   S1h  c = 1, r80: p50(on) <= 0.75 x p50(off)                          (prediction 0.4-0.6x)
   S2h  smallest c (r80 pairs) with speedup < 1.05                        (prediction between 16 and 64)
-  S3h  gain(r00) / gain(r80) at c = 4                                    (prediction about 0.5)
+  S3h  gain(r00) / gain(r80) at c = 4, the two pairs of the same N (axis B amendment: n30)   (prediction about 0.5)
   S4h  pooled over all off/on pairs: paired accuracy within +-1 point AND >= 95% of paired tasks with
        identical final pred_sql (exact string after whitespace normalization)   (prediction met)
 Writes DIR/analysis_s.{md,json}, DIR/fig_speedup_vs_c.csv, DIR/fig_speedup_vs_repeat.csv (DIR = job dir).
@@ -138,17 +138,20 @@ def main():
                                                                                 "FAIL (kill: drop suffix decoding and plan-guided speculation)"))
     a80 = sorted([p for p in pairs if p["stream"] == "r80" and p["speedup"] is not None], key=lambda p: (p["c"], p["n"]))
     by_c = {}
-    for p in a80:
-        by_c.setdefault(p["c"], p)
+    for p in a80:  # axis A = the largest-N r80 pair per c (the n30 c=4 pair is axis B, PLAN §2h amendment)
+        if p["c"] not in by_c or p["n"] > by_c[p["c"]]["n"]:
+            by_c[p["c"]] = p
     below = [c for c, p in sorted(by_c.items()) if p["speedup"] < 1.05]
     s2 = below[0] if below else None
     rules["S2h"] = dict(rule="smallest c (r80) with speedup < 1.05", prediction="between 16 and 64",
                         speedups={c: p["speedup"] for c, p in sorted(by_c.items())}, c_boundary=s2,
                         verdict=("none of the tested c (all >= 1.05)" if s2 is None and by_c else
                                  None if s2 is None else ("as predicted" if 16 <= s2 <= 64 else "not as predicted")))
-    g0, g80 = find("r00", 4), find("r80", 4, 150) or find("r80", 4)
+    # PLAN §2h amendment (Aryan, Nov 7): S3h compares the r00 pair with the r80 pair of the SAME N (30), both c=4
+    g0 = find("r00", 4)
+    g80 = g0 and find("r80", 4, g0["n"])
     s3 = rnd(g0["gain"] / g80["gain"]) if g0 and g80 and g80["gain"] else None
-    rules["S3h"] = dict(rule="gain(0%) / gain(80%) at c=4, gain = 1 - p50(on)/p50(off)", prediction="about 0.5",
+    rules["S3h"] = dict(rule="gain(0%) / gain(80%) at c=4, same N (axis B amendment), gain = 1 - p50(on)/p50(off)", prediction="about 0.5",
                         gain_r00=g0 and g0["gain"], gain_r80=g80 and g80["gain"], ratio=s3)
     diffs = [x for p in pairs for x in p["_diffs"]]
     npair = sum(p["paired"] for p in pairs); nid = sum(p["identical_sql"] for p in pairs)
