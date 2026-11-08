@@ -817,6 +817,7 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
   - *Ablation (r80 P1i / P2i): L0 0.613 / 0.075; + typed slots 0.602 / 0.067; + entities 0.540 / 0.025; + margin 0.702 / 0.108. Only the margin step raised recall, and it raised the false-hint rate with it.*
   - *TPC-DS-only pool, report only: r80 0.775 / 0.092 / 0.966, r50 0.547 / 0.080 / 0.859. It would also fail. TPC-H alone at r80: 0.729 / 0.000 / 1.000.*
   - *Prediction check: P1i was predicted ≈ 0.85 at r80 (observed 0.70); P2i was predicted met (it missed narrowly at both rates); the overall failure on r50 was predicted.*
+- *Aryan, Nov 7 (after P2): the plan cache stays closed. Effort goes to suffix decoding. Ideas noted but not pursued: verified (speculative) hints, soft top-k hints with harm measured, same-tenant candidates.*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
