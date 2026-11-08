@@ -24,7 +24,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
 | Part A (Nov 6) | A1: S3 passes under Aryan's same-job amendment. **A2/P3 NOT MET.** **A3 MET.** **A4: stock collapse ≈ 200 tasks/min;** both plateaus at 190–200/min. 1.443 GPU node-h. `results/a2_phase3.md`, `a3_reqcap.md`, `a4_collapse.md` |
-| Tests S + P (Nov 7, §2h, §2i) | **Plan cache closed: Test P (§2h) and the CPU re-test P2 (§2i, 121 templates, strict rates) both fail** (P2 r80 recall 0.70, false-hint 0.11). Test S: smoke passed; job 60982784 running axis A + axis B (true-0% vs 80%, 30 q, c=4, amended by Aryan) + BIRD ref |
+| Tests S + P (Nov 7, §2h, §2i) | **Done.** **Suffix decoding: S1h PASS (0.51× p50 at c=1)**; ≥1.47× at every c up to 64 (no S2h boundary); 1.55× even at 0% repeats (S3h ratio 0.78); accuracy unchanged, but only 49% identical SQL (**S4h NOT MET**). `results/spec_suffix.md`. **Plan cache closed** (P and P2 fail; Aryan agrees). Follow-up (V1-runner control) proposed, not started |
 | **Project state** | **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.** No GPU jobs after Nov 6. |
 | Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Not run (paused at midpoint)** |
 | Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
@@ -739,6 +739,14 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
   - *Effect on reading: Speedup = suffix decoding plus the runner/scheduling change, as a user of the flag would get it. The runner change is probably a handicap for "on", so the speedup is probably conservative. It is not separated unless a later control cell (off with the V1 runner and no async scheduling) is run.*
   - *KV pool is 136,656 tokens with suffix on vs 139,232 off.*
   - *Suffix is confirmed active: 2,135 drafts, 8,103 / 12,055 drafted tokens accepted after ~1 min of the c = 1 cell.*
+
+- *Observed, Test S (`results/spec_suffix.md`; job 60982784, 0.532 node-h; smoke 60982458):*
+  - ***S1h PASS:** p50 ratio on/off 0.512 at c = 1, r80 (prediction 0.4–0.6×). The kill rule is not triggered.*
+  - ***S2h:** speedup 1.96 / 1.67 / 1.47 / 1.73× at c = 1 / 4 / 16 / 64, so no boundary up to 64. Not as predicted (16–64).*
+  - ***S3h:** gain 0.357 (0%) vs 0.459 (80%), ratio 0.78. Not as predicted (≈ 0.5): most of the gain comes from repetition within a task, not across questions. Acceptance is 0.58 at 0% vs 0.61–0.63 at 80%.*
+  - ***S4h NOT MET:** accuracy on − off 0.0 ± 0.6 points over 1,110 pairs (accuracy part met), but only 49% identical final SQL (W 45%, BIRD 77%). Two suffix-off runs agree on 20/20 final SQL (smoke vs c = 1 off cell), so it is the arm that changes outputs. Suffix and the V1-runner switch are not separated.*
+  - *BIRD reference (frozen agent, c = 1): 1.94×, accuracy 46.7 → 48.0%.*
+  - *Proposed, not run: V1-runner off control (about 0.1 node-h) and repeat runs at c = 16 and 64. Both need Aryan's OK.*
 
 **Budget:** Test S ~0.7 GPU node-h expected (cap 1.0). Test P and building W are CPU only. `iris` Nov 7: GPU 13.6 / 45 used, CPU 0.5 / 10.
 
