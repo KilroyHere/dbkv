@@ -24,7 +24,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
 | Part A (Nov 6) | A1: S3 passes under Aryan's same-job amendment. **A2/P3 NOT MET.** **A3 MET.** **A4: stock collapse ≈ 200 tasks/min;** both plateaus at 190–200/min. 1.443 GPU node-h. `results/a2_phase3.md`, `a3_reqcap.md`, `a4_collapse.md` |
-| Tests S + P (Nov 7, §2h) | **Test P done: P2h fails under both repeat definitions, so the plan-hint step is not triggered.** W built (30 templates, 4 TPC-DS tenants). Strict repeat definition infeasible with 30 templates; windowed used (see §2h). Test S: axis A next; axis B held for Aryan |
+| Tests S + P (Nov 7, §2h) | **Test P done: P2h fails under both repeat definitions, so the plan-hint step is not triggered.** Test S: smoke passed (0/20 no-SQL); job 60982784 runs axis A + axis B (amended by Aryan: true-0% vs 80%, 30 q, c=4) + BIRD ref. Plan-cache re-test (§2i, CPU, 121 templates, strict rates) pre-registered; building W2 |
 | **Project state** | **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.** No GPU jobs after Nov 6. |
 | Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Not run (paused at midpoint)** |
 | Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
@@ -736,7 +736,7 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 
 **Budget:** Test S ~0.7 GPU node-h expected (cap 1.0). Test P and building W are CPU only. `iris` Nov 7: GPU 13.6 / 45 used, CPU 0.5 / 10.
 
-### 2i. Plan-cache re-test on CPU (Test P2), pre-registered Sat Nov 7 2026 PT_TIME, commit COMMIT, before any W2 stream exists
+### 2i. Plan-cache re-test on CPU (Test P2), pre-registered Sat Nov 7 2026 16:47 PT, commit 4b6da42, before any W2 stream exists
 
 *Aryan's decision (Nov 7): before any GPU plan-hint work, re-test plan-cache matching on CPU with a better matcher and a template pool big enough for true (strict) repeat rates. Test P (§2h) stands as recorded. This is the **last matcher iteration**: if §2i fails, the plan cache is closed, and no further matcher variants are run without a new pre-registration agreed with Aryan.*
 
