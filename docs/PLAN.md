@@ -728,6 +728,11 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 - *Effect on Test S (decided before any Test S data):*
   - *Axis A (r80 stream) is valid under both definitions (strict ≥ 0.80), so S1h and S2h are unaffected.*
   - *Axis B (0% / 50%) is **held for Aryan**. Suffix decoding's cross-request tree remembers up to 10,000 earlier requests, not 25, so a windowed "0%" stream still repeats templates within the cell, and S3h would not measure repetition dependence as intended.*
+- ***Amendment, axis B (Aryan's decision, Nov 7, before any axis B data):** axis B becomes a true-0% vs 80% pair at c = 4, 30 questions each.*
+  - *0% cell: the first 30 questions of `w_r00_s0`, which are each of the 30 templates exactly once (0 strict repeats). Mix: 6 simple / 16 medium / 8 complex.*
+  - *80% cell: the first 30 questions of `w_r80_s0`, which are 6 templates with 24 strict repeats (exactly 80%). Mix: 4 simple / 17 medium / 9 complex.*
+  - *Cells `off:r00:30:4 on:r00:30:4 on:r80:30:4 off:r80:30:4`, fresh server each, appended to the axis A job. The 50% cell is dropped.*
+  - *S3h is computed on these two cell pairs only: ratio gain(0%) / gain(80%), prediction ≈ 0.5, unchanged. At 30 questions this is a coarse estimate, and it is reported as such.*
 
 **Budget:** Test S ~0.7 GPU node-h expected (cap 1.0). Test P and building W are CPU only. `iris` Nov 7: GPU 13.6 / 45 used, CPU 0.5 / 10.
 
