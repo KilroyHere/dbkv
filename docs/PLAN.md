@@ -733,6 +733,12 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
   - *80% cell: the first 30 questions of `w_r80_s0`, which are 6 templates with 24 strict repeats (exactly 80%). Mix: 4 simple / 17 medium / 9 complex.*
   - *Cells `off:r00:30:4 on:r00:30:4 on:r80:30:4 off:r80:30:4`, fresh server each, appended to the axis A job. The 50% cell is dropped.*
   - *S3h is computed on these two cell pairs only: ratio gain(0%) / gain(80%), prediction ≈ 0.5, unchanged. At 30 questions this is a coarse estimate, and it is reported as such.*
+- *Configuration observed in job 60982784, recorded before any timing result:*
+  - *With suffix on, vLLM 0.33 logs "Model Runner V2 does not yet support speculative method 'suffix'; using the V1 model runner" and "Async scheduling is disabled". It also caps max_num_scheduled_tokens at 2048.*
+  - *The off arm runs the V2 runner with async scheduling. So the on arm differs internally by more than drafting, even though the server flag is the only change.*
+  - *Effect on reading: Speedup = suffix decoding plus the runner/scheduling change, as a user of the flag would get it. The runner change is probably a handicap for "on", so the speedup is probably conservative. It is not separated unless a later control cell (off with the V1 runner and no async scheduling) is run.*
+  - *KV pool is 136,656 tokens with suffix on vs 139,232 off.*
+  - *Suffix is confirmed active: 2,135 drafts, 8,103 / 12,055 drafted tokens accepted after ~1 min of the c = 1 cell.*
 
 **Budget:** Test S ~0.7 GPU node-h expected (cap 1.0). Test P and building W are CPU only. `iris` Nov 7: GPU 13.6 / 45 used, CPU 0.5 / 10.
 
