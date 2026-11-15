@@ -1,4 +1,14 @@
-"""The frozen ReAct SQL agent (agent-frozen-v1:harness/agent/run_bird.py) on the W workload (PLAN §2h).
+"""The frozen ReAct SQL agent (agent-frozen-v1:harness/agent/run_bird.py) on DuckDB: W (PLAN §2h) and W3 (§2j).
+
+agent-32b-v1 (PLAN 2j, Qwen3-32B on W3), the only changes from agent-duckdb-v1:
+  - prompt and tool texts say DuckDB instead of SQLite, and name quoting is with double quotes (DuckDB's)
+    instead of backticks (SQLite / MySQL);
+  - --brief-map tpch=FILE,tpcds=FILE: one shared compact brief per benchmark (W3 has TPC-H and TPC-DS tenants);
+  - grading against the stream's stored canonical gold rows (tools_duckdb.canon = harness/w3/build_w3.canon) when the task has
+    gold_rows, so SF100 gold queries are not re-run; the prediction's result is fetched up to 1001 rows;
+  - tasks.jsonl also records bench, gold_runtime_s and llm_s (sum of client-side chat time).
+  python harness/agent_duckdb/run_w.py --url $VLLM_URL --stream $DBKV_DATA/w3/streams/w3_mix_s0.jsonl --n 20 \
+      --brief-map tpch=$DBKV_DATA/w3/brief_tpch_compact.txt,tpcds=$DBKV_DATA/w3/brief_tpcds_compact.txt --out DIR
 
   python harness/agent_duckdb/run_w.py --url http://127.0.0.1:8000 \
       --stream $DBKV_DATA/plancache/streams/w_r80_s0.jsonl --n 150 --concurrency 4 \
@@ -16,21 +26,21 @@ import aiohttp
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tools_duckdb as tools  # noqa: E402
 
-SYSTEM = """You are a careful data analyst answering a question about a SQLite database.
+SYSTEM = """You are a careful data analyst answering a question about a DuckDB database.
 Use the tools to inspect the database and test queries. Each reply may call tools.
 Never guess table or column names: check them with describe_table before using them, and quote names that
-contain spaces or symbols with backticks.
-When you are confident, reply WITHOUT a tool call. That final reply must contain exactly one SQLite query in a
+contain spaces or symbols with double quotes.
+When you are confident, reply WITHOUT a tool call. That final reply must contain exactly one DuckDB query in a
 ```sql ... ``` block that computes the answer from the database itself: never copy numbers or values from
 earlier results into the query. Return only the columns the question asks for.
 You have at most {max_turns} replies in total."""
 
 
-NUDGE = ("Continue. Either call a tool, or, if you are done, reply with the final answer as one SQLite query "
+NUDGE = ("Continue. Either call a tool, or, if you are done, reply with the final answer as one DuckDB query "
          "in a ```sql ... ``` block.")
 
 
-LAST = ("This is your last reply. Do not call tools. Give the final answer now as one SQLite query in a "
+LAST = ("This is your last reply. Do not call tools. Give the final answer now as one DuckDB query in a "
         "```sql ... ``` block.")
 
 
@@ -65,18 +75,20 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
     db = task["db_path"]
     sys_prompt = SYSTEM.format(max_turns=a.max_turns)
     build_s = 0.0
-    if a.brief_text:  # one shared brief for every tenant, placed exactly like the frozen agent's --briefs
-        sys_prompt += "\n\nDatabase schema:\n" + a.brief_text
+    brief_text = a.brief_by_bench.get(task.get("bench"), a.brief_text) if a.brief_by_bench else a.brief_text
+    if brief_text:  # one shared brief per benchmark, placed exactly like the frozen agent's --briefs
+        sys_prompt += "\n\nDatabase schema:\n" + brief_text
     q = task["question"] + (f"\nHint: {task['evidence']}" if task.get("evidence") else "")
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": q}]
     async with sem:
-        t_start = time.monotonic(); db_time = 0.0; last_ok_sql = None; answer = None; status = "max_turns"
+        t_start = time.monotonic(); db_time = 0.0; llm_time = 0.0; last_ok_sql = None; answer = None; status = "max_turns"
         n = 0; prompt_tok = 0
         for n in range(1, a.max_turns + 1):
             final = n == a.max_turns  # turn budget: the last reply must be the answer
             if final:
                 messages.append({"role": "user", "content": LAST})
             resp, dt, err = await chat(http, a, messages, final=final)
+            llm_time += dt
             if resp is None:
                 status = "llm_error:" + ("context" if "context" in (err or "").lower() or "maximum" in (err or "").lower() else "other")
                 turns_out.append(dict(qid=task["qid"], turn=n, error=status, detail=err, client_s=round(dt, 4)))
@@ -119,16 +131,23 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
     pred = answer or last_ok_sql
     correct, why = False, None
     if pred:  # execution match on the task's tenant (read-only): pred and gold result rows as sets
-        gc, gr, _, ge, _ = await asyncio.to_thread(tools.run_query, db, task["gold_sql"])
-        pc, pr, _, pe, _ = await asyncio.to_thread(tools.run_query, db, pred)
-        correct = (pe is None and ge is None and set(map(tuple, pr)) == set(map(tuple, gr)))
+        if task.get("gold_rows") is not None:  # W3: stored canonical gold rows (agent-32b-v1)
+            pc, pr, _, pe, _ = await asyncio.to_thread(tools.run_query, db, pred, tools.TIMEOUT_S, 1000)
+            ge = None
+            correct = (pe is None and len(pr) <= 1000
+                       and set(map(tuple, tools.canon(pr))) == set(map(tuple, task["gold_rows"])))
+        else:
+            gc, gr, _, ge, _ = await asyncio.to_thread(tools.run_query, db, task["gold_sql"])
+            pc, pr, _, pe, _ = await asyncio.to_thread(tools.run_query, db, pred)
+            correct = (pe is None and ge is None and set(map(tuple, pr)) == set(map(tuple, gr)))
         why = pe or ("gold_error" if ge else None)
     tasks_out.append(dict(qid=task["qid"], db=task["tenant"], difficulty=task.get("difficulty"),
                           brief=a.brief_name, build_s=round(build_s, 4), concurrency=a.concurrency, status=status, turns=n,
                           task_s=round(task_s, 3), db_s=round(db_time, 4), prompt_tokens=prompt_tok,
                           pred_sql=pred, used_answer=bool(answer), correct=bool(correct), pred_error=why,
                           final_text=final_text, tenant=task["tenant"], template_id=task["template_id"],
-                          phrasing_id=task["phrasing_id"], is_repeat=bool(task["is_repeat"]), pos=task.get("pos")))
+                          phrasing_id=task["phrasing_id"], is_repeat=bool(task["is_repeat"]), pos=task.get("pos"),
+                          bench=task.get("bench"), gold_runtime_s=task.get("gold_runtime_s"), llm_s=round(llm_time, 3)))
     print(f"[{len(tasks_out)}] {task['qid']} {status} turns={n} {task_s:.1f}s correct={correct}", flush=True)
 
 
@@ -140,6 +159,7 @@ async def main():
     ap.add_argument("--n", type=int, default=150, help="first N questions of the stream")
     ap.add_argument("--concurrency", type=int, default=1)
     ap.add_argument("--brief", default="none", help="brief text file shared by all tenants, or 'none'")
+    ap.add_argument("--brief-map", default="", help="bench=FILE,... (W3: tpch=...,tpcds=...); overrides --brief per bench")
     ap.add_argument("--max-turns", type=int, default=15)
     ap.add_argument("--max-tokens", type=int, default=1024)
     ap.add_argument("--out", required=True)
@@ -151,8 +171,16 @@ async def main():
     tasks = stream[:a.n]
     a.brief_text = "" if a.brief in ("", "none") else open(a.brief).read().strip()
     a.brief_name = "none" if not a.brief_text else os.path.splitext(os.path.basename(a.brief))[0]
+    a.brief_by_bench = {}
+    for kv in filter(None, a.brief_map.split(",")):
+        b, f = kv.split("=", 1)
+        a.brief_by_bench[b] = open(f).read().strip()
+    if a.brief_by_bench:
+        a.brief_name = "map:" + ",".join(sorted(a.brief_by_bench))
     cfg = {k: v for k, v in vars(a).items() if k != "brief_text"}
     cfg["brief_chars"] = len(a.brief_text)
+    cfg.pop("brief_by_bench", None)
+    cfg["brief_map_chars"] = {b: len(t) for b, t in a.brief_by_bench.items()}
     json.dump(dict(cfg, qids=[t["qid"] for t in tasks]), open(os.path.join(a.out, "config.json"), "w"), indent=1)
     turns_out, tasks_out = [], []
     sem = asyncio.Semaphore(a.concurrency)

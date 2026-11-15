@@ -16,7 +16,7 @@ MAX_CHARS = 3000
 MEMORY_LIMIT = "16GB"
 THREADS = 8
 
-# Same names, descriptions and parameters as the frozen agent (the texts say SQLite there; kept verbatim).
+# Same names, descriptions and parameters as the frozen agent, except "SQLite" -> "DuckDB" in execute_sql (agent-32b-v1).
 TOOL_SPECS = [
     {"type": "function", "function": {
         "name": "list_tables", "description": "List the tables in the database.",
@@ -30,7 +30,7 @@ TOOL_SPECS = [
                                                          "n": {"type": "integer", "description": "rows (default 3, max 10)"}},
                        "required": ["table"]}}},
     {"type": "function", "function": {
-        "name": "execute_sql", "description": "Run a read-only SQLite query and return its result (first 40 rows).",
+        "name": "execute_sql", "description": "Run a read-only DuckDB query and return its result (first 40 rows).",
         "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"]}}},
 ]
 EXPLORE = {"list_tables", "describe_table", "sample_rows"}
@@ -61,6 +61,24 @@ def classify(e):
     if isinstance(e, duckdb.Error):
         return "operational"
     return type(e).__name__
+
+
+def canon(rows):
+    """W3 grading (agent-32b-v1): identical to harness/w3/build_w3.canon (kept here so the exported agent is
+    self-contained). Numbers -> '.10g' float strings, dates/times -> ISO, None -> None, else str."""
+    import datetime as _dt, decimal as _dec, json as _json
+
+    def v(x):
+        if x is None:
+            return None
+        if isinstance(x, bool):
+            return str(x)
+        if isinstance(x, (int, float, _dec.Decimal)):
+            return format(float(x), ".10g")
+        if isinstance(x, (_dt.date, _dt.datetime, _dt.time)):
+            return x.isoformat()
+        return str(x)
+    return sorted(([v(x) for x in r] for r in rows), key=lambda r: _json.dumps(r))
 
 
 def run_query(db_path, sql, timeout=TIMEOUT_S, max_rows=None):

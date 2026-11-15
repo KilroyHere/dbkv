@@ -35,6 +35,18 @@ PK = {
     "web_returns": ["wr_item_sk", "wr_order_number"], "web_sales": ["ws_item_sk", "ws_order_number"],
     "web_site": ["web_site_sk"],
 }
+# TPC-H (W3, PLAN 2j): the spec's primary keys and foreign keys (dbgen DuckDB files declare no constraints either).
+PK.update({
+    "region": ["r_regionkey"], "nation": ["n_nationkey"], "part": ["p_partkey"], "supplier": ["s_suppkey"],
+    "partsupp": ["ps_partkey", "ps_suppkey"], "customer_h": ["c_custkey"], "orders": ["o_orderkey"],
+    "lineitem": ["l_orderkey", "l_linenumber"],
+})
+TPCH_JOINS = [("nation", "n_regionkey", "region", "r_regionkey"), ("supplier", "s_nationkey", "nation", "n_nationkey"),
+              ("customer", "c_nationkey", "nation", "n_nationkey"), ("partsupp", "ps_partkey", "part", "p_partkey"),
+              ("partsupp", "ps_suppkey", "supplier", "s_suppkey"), ("orders", "o_custkey", "customer", "c_custkey"),
+              ("lineitem", "l_orderkey", "orders", "o_orderkey"), ("lineitem", "l_partkey", "part", "p_partkey"),
+              ("lineitem", "l_suppkey", "supplier", "s_suppkey"),
+              ("lineitem", "l_partkey", "partsupp", "ps_partkey"), ("lineitem", "l_suppkey", "partsupp", "ps_suppkey")]
 # FK suffix -> (table, pk column); longest suffixes first
 FK_SUFFIX = [
     ("_catalog_page_sk", "catalog_page", "cp_catalog_page_sk"), ("_call_center_sk", "call_center", "cc_call_center_sk"),
@@ -62,7 +74,8 @@ def meta(con):
     for t in tabs:
         info = con.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='main' "
                            "AND table_name=? ORDER BY ordinal_position", [t]).fetchall()
-        pk = set(PK.get(t, []))
+        tpch = "lineitem" in tabs
+        pk = set(PK.get("customer_h" if (tpch and t == "customer") else t, []))
         cols[t] = [(c, typ, c in pk) for c, typ in info]
         for c, typ in info:
             vals = []
@@ -76,6 +89,8 @@ def meta(con):
                     if rt in tabs and c != rc:
                         joins.add((t, c, rt, rc))
                     break
+    if "lineitem" in tabs:
+        joins.update(j for j in TPCH_JOINS if j[0] in tabs and j[2] in tabs)
     for a, b, c, d in RETURN_LINKS:
         if a in tabs and c in tabs:
             joins.add((a, b, c, d))

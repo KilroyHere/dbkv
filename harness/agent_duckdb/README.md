@@ -24,3 +24,14 @@ What differs from `agent-frozen-v1`, and nothing else:
 4. **BIRD-only fields dropped.** These are `--bird`, `--seed`, `--brief none|full|oracle`, `--briefs`, `difficulty` (always null), the `SQL` gold and the description CSVs. `evidence` is "" by default, so the `Hint:` line is left out, as in the frozen code.
 
 Also here are `analyze_s.py`, the Test S analysis (S1h–S4h), and the job script `slurm/spec_suffix.sbatch`. The optional BIRD reference cell runs the frozen agent itself, exported from the tag.
+
+## Port to Qwen3-32B and W3 (`agent-32b-v1`, PLAN §2j Phase 0 (f))
+
+What differs from `agent-duckdb-v1`, and nothing else (loop, NUDGE/LAST logic, tool set, decoding, turn limit, truncation, error classes and the name hint are unchanged; the model comes from `DBKV_MODEL` = Qwen/Qwen3-32B):
+
+1. **Dialect wording.** The SYSTEM, NUDGE and LAST texts and the `execute_sql` description say **DuckDB** instead of SQLite, and the prompt says to quote odd names with **double quotes** (DuckDB) instead of backticks. On W the agent was told it was writing SQLite against DuckDB; that is a port bug, not a modelling choice, so it is fixed here before the 32B baseline exists.
+2. **One brief per benchmark** (`--brief-map tpch=FILE,tpcds=FILE`). W3 mixes TPC-H and TPC-DS tenants. The briefs are built by `harness/plancache/brief.py` (now also TPC-H: spec PKs and FKs) from `tpch_sf10` and `tpcds_sf10`, stored as `$DBKV_DATA/w3/brief_{tpch,tpcds}_compact.txt` (~0.8k and ~5.2k tokens). The TPC-DS builder still reproduces W's brief byte for byte (checked on `tpcds_sf1`).
+3. **Grading from stored gold rows.** A W3 task carries `gold_rows` (canonical, from `harness/w3/build_w3.py`), so SF100 gold queries are not re-run inside GPU jobs. The prediction is executed once (≤ 1001 rows fetched) and compared as a set after `tools_duckdb.canon()` (numbers as `.10g` floats, dates ISO, else str; identical to `build_w3.canon`). Tasks without `gold_rows` (W streams) are graded exactly as before.
+4. **Extra task fields:** `bench`, `gold_runtime_s`, `llm_s` (sum of client-side chat time; with `db_s`, the per-task LLM vs query split).
+
+Smoke test: `harness/w3/smoke.py` inside `slurm/node_serve.sbatch` (20 tasks of `w3_mix_s0`, concurrency 4; pass = 0 tasks without SQL and a parsed tool call in non-thinking mode).
