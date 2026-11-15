@@ -29,7 +29,7 @@ node_check_gpus() {  # abort unless this node has exactly NODE_TP A100-SXM4-40GB
   echo "$q" | sed 's/^/  gpu: /'
   local n bad
   n=$(echo "$q" | grep -c .)
-  bad=$(echo "$q" | awk -F', ' '$2 > 45000 || $2 < 39000' | grep -c .)
+  bad=$(echo "$q" | awk -F', ' '$2 > 45000 || $2 < 39000 || $1 !~ /A100-SXM4/' | grep -c .)
   [[ $n -ge $NODE_TP && $bad -eq 0 ]] || { echo "NODE CHECK FAILED: need $NODE_TP x 40GB GPUs, got $n (non-40GB: $bad)"; return 1; }
   nvidia-smi topo -m 2>/dev/null | head -6
 }

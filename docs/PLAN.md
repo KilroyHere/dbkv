@@ -25,7 +25,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 |---|---|
 | **Next phase (Nov 15, §2j)** | **Active.** Qwen3-32B (dense, BF16, non-thinking), one vLLM instance with TP = 4 on one full GPU node (4 × A100-40GB, `gpu&hbm40g`, regular QOS, 1 node-h per hour). Workload W3: our DuckDB agent on TPC-H SF10/SF100 and TPC-DS SF10. Options built in order A → C → B → E → D, no gates; predictions in §2j are the pre-registration. Doing Phases 0–2 now; Phase 3 later |
 | Phase 0: setup (§2j) | **Done (Nov 15).** (a) Qwen3-32B downloaded (65.52 GB, snapshot `9216db57`). (b) `DBKV_MODEL=Qwen/Qwen3-32B`; 8B scripts pin `DBKV_MODEL_8B`. (c) `slurm/node_lib.sh`, `node_serve.sbatch`, `node_smoke.sbatch`. (d) `kv_limit.py --tp 4` predicted 275k–308k tokens; **vLLM reports 305,328** (18.64 GiB KV per GPU); K = 305,328 ÷ per-task KV (≈105–139 for 2.2–2.9k; the 32B per-task KV is measured in Phase 1). (e) W3 built, tag `workload-w3-v1` (133/143 pairs, 783 gold instances). (f) agent ported, tag **`agent-32b-v1`**. (g) **Smoke PASS** (debug-QOS job 61369427, 5 min, 0.089 node-h): 0/20 no-SQL, tool calls parsed in non-thinking mode, 6.2 turns/task, task p50 12.7 s (c = 4), LLM 82% / DB 13% of task time, accuracy 3/20 (wrong answers checked: genuine SQL errors). Decode step 17.6 ms at batch 1, 24 ms at batch 64; burst 64 × 256 tokens: 861 out tok/s. Server start 161 s. Logging-off control moved to the Phase 1 sweep job. `results/smoke32_summary.json` |
-| Phase 1: baseline (§2j) | Next. Prediction is written into §2j before the first job. Aryan (Nov 15): the 3 repeat jobs run **in parallel on 3 nodes** (each job holds all load levels, so comparisons stay within a job) |
+| Phase 1: baseline (§2j) | **Pre-registered (§2j-P1)**; sweep job next, then 3 repeat jobs. Aryan (Nov 15): the 3 repeat jobs run **in parallel on 3 nodes** (each job holds all load levels, so comparisons stay within a job) |
 | Phase 2: options A, C, B, E, D (§2j) | Not started. A(a) gateway → A(b) suffix → A(c) W8A8 → A(d) FP8 KV, then C, B, E, D |
 | GPU budget (`iris`, Nov 15) | m4999_g: **14.2 of 45 node-h used, 30.8 left**. CPU: 0.5 of 10. Phases 1–2 are estimated at ~13–24 node-h (§6) |
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
@@ -891,6 +891,39 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 **Process for this session (Aryan, Nov 15):** check the budget with `iris` and tell Aryan the estimate before each GPU phase; never leave a GPU job unattended; log every job in `jobs.tsv`; notify Aryan when a job ends or fails, or when his approval is needed. Job submission otherwise needs no per-job "go" (big GPU spends are still asked).
 
 **Superseded by this section:** Part C (§2g), the §5 roadmap, and the "no speculative decoding" rule (Rules for D2 in Status, the §1 out-of-scope line). Each carries a dated note. Still in force: pre-register before data, same-job controls, `gpu&hbm40g`, frozen tags, `jobs.tsv`.
+
+#### 2j-P1. Phase 1 baseline: design and predictions (pre-registered Sun Nov 15 2026 ~15:50 PT, before any Phase 1 job)
+
+*Do not edit; add observations below. Seen before writing: Phase 0 only (smoke job 61369427: 20 tasks at c = 4, task p50 12.7 s, 6.2 turns, ~556 output and ~2,056 uncached prompt tokens per task, peak context 5.1k (TPC-H 2.8k, TPC-DS 9.4k incl. the brief), decode step 17.6 ms at batch 1 and 24 ms at batch 64, burst 64 × (2000 prompt + 256 output) in 19 s, KV pool 305,328 tokens).*
+
+**System (naive baseline):** stock vLLM 0.33, Qwen3-32B BF16, TP = 4, FCFS, prefix caching on (vLLM default), no gateway, no speculative decoding; agent `agent-32b-v1` direct to vLLM; instrumentation on (`dbkv_steplog`, iteration details, KV eviction metrics; `slurm/node_lib.sh`). Script `slurm/node_p1.sbatch`; open-loop cells: 60 s warm-up, 300 s measured window, 180 s drain cap; unfinished tasks count in p95 at their elapsed time and in accuracy as wrong (as Part A); prefix cache reset between cells.
+
+**Jobs:**
+1. **Sweep** (1 job, `--time 1:30`, ~1.1 node-h): `burst`, `open:60`, `open:100`, `open:140`, `open:180`, `open:240` on `w3_mix_s0`, then the logging-overhead control `restart:off burst restart:on burst` (A-B-A with the first burst).
+   - **Ceiling R\*** = the highest swept rate whose measured throughput is ≥ 0.95 × the rate and that leaves no task unfinished at the drain cap.
+   - **Overload R_o** = 1.5 × R\*, rounded to 10/min.
+2. **Repeats** (3 jobs, run **in parallel on 3 nodes**, Aryan Nov 15; stream and load seed 0 / 1 / 2, one per job; `--time 0:55`, ~0.6 node-h each): `closed:1:30` and `closed:4:60` (light, 1–4 agents), `open:R*` (near ceiling), `open:R_o` (overload).
+   - Reported per level: mean ± range over the 3 jobs.
+- **Budget:** ~3 node-h (cap 1.5 + 3 × 0.92 = 4.3).
+
+**Per-turn prefix-cache miss causes** (from `turns.jsonl`, no engine change), per task, for turn n ≥ 2, where P = prompt tokens, O = output tokens and C = cached tokens:
+- **new** = P_n − (P_{n−1} + O_{n−1}): the appended tool results and nudges, which can never be cached;
+- **evicted** = max(0, (P_n − new) − C_n − 16): the conversation prefix the cache had computed but no longer held (16 = one block of rounding);
+- **turn 1:** **cold** = P_1 − C_1 (question + any uncached system/brief part).
+- Reported as token shares of all uncached prompt tokens, per cell, together with the step log's preemptions and eviction events.
+
+**Predictions (not gates):**
+- **P1-a, light load:** p50 task time at c = 1 is 9–14 s. c = 4 p50 ≤ 1.15 × c = 1 p50 (batching is nearly free: the decode step grows only 17.6 → 24 ms from batch 1 to 64).
+- **P1-b, ceiling:** R\* is 140 or 180 tasks/min. The GPU is prefill-bound there: prefill (ctx) tokens take ≥ 50% of summed step time in the R\* cell.
+- **P1-c, overload:** at R_o, stock vLLM collapses as 8B did:
+  - throughput ≤ 0.8 × R\* cell's throughput;
+  - p95 ≥ 3 × R\* cell's p95;
+  - prefix-cache hit rate ≥ 15 points below R\*'s;
+  - **evicted** is the largest uncached-token share;
+  - preemptions > 0.
+- **P1-d, time split at R\*:** LLM ≥ 75% of summed task time, DB query time ≤ 15%, DB queue time ≤ 5%.
+- **P1-e, logging overhead:** burst output tok/s with instrumentation on is within 2% of off (on = mean of the two "on" bursts).
+- **P1-f, admission limit for A(a):** per-task KV, measured as pool × peak KV usage ÷ tasks in flight in the R\* cell, is 2.5–4k tokens. Hence **K = floor(305,328 ÷ that) = 75–120**. That K is used in A(a).
 
 ## 3. Go/no-go tests: decide before building the engine change
 
