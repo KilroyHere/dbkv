@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Idempotent Perlmutter setup for dbkv. Safe to re-run; each step skips if already done.
 # Run on a login node:  bash setup/perlmutter_setup.sh [--model]
-#   --model  also download $DBKV_MODEL into $HF_HOME (~16 GB; run inside tmux)
+#   --model  also download $DBKV_MODEL into $HF_HOME (run inside tmux; needs Aryan's approval)
+#            Qwen/Qwen3-32B (PLAN 2j): ~65 GB BF16. Qwen/Qwen3-8B (the 8B record): 16.4 GB.
+#            Skips the download if the snapshot is already complete; resumes a partial one.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +34,9 @@ EOF
 
 if [[ "${1:-}" == "--model" ]]; then
   echo "== 4. Download $DBKV_MODEL to $HF_HOME"
-  hf download "$DBKV_MODEL" --exclude "*.pth" >"$DBKV_DATA/logs/model_download.log" 2>&1
-  echo "model download finished"
+  log="$DBKV_DATA/logs/model_download_$(echo "$DBKV_MODEL" | tr '/' '_').log"
+  hf download "$DBKV_MODEL" --exclude "*.pth" >"$log" 2>&1   # hf resumes partial files and skips complete ones
+  snap=$(ls -d "$HF_HOME/hub/models--${DBKV_MODEL//\//--}/snapshots/"* | head -1)
+  echo "model download finished: $snap ($(du -shL "$snap" | cut -f1)); log $log"
 fi
 echo "== done"

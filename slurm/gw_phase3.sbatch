@@ -24,6 +24,7 @@
 #SBATCH --output=/pscratch/sd/a/ap2568/dbkv/logs/%x-%j.out
 set -uo pipefail
 source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
+export DBKV_MODEL=$DBKV_MODEL_8B   # 8B record, 1 GPU (env.sh default is Qwen3-32B since PLAN 2j)
 cd "$DBKV_REPO"
 source harness/gateway/gw_lib.sh
 NREP=${1:-}; shift || true

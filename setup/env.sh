@@ -7,7 +7,8 @@ export DBKV_DATA=$SCRATCH/dbkv                                   # DuckDB files,
 export DBKV_ENV=$SCRATCH/envs/dbkv-env                          # Python venv: CPU tools + stock vLLM
 # (not /global/common/software/m4999: that quota is shared by the whole class and was full on 2026-11-04)
 export HF_HOME=$SCRATCH/huggingface                              # shared HF cache (already holds HW models)
-export DBKV_MODEL=Qwen/Qwen3-8B
+export DBKV_MODEL=Qwen/Qwen3-32B                                 # PLAN 2j (Nov 15): BF16, TP=4 on one full node
+export DBKV_MODEL_8B=Qwen/Qwen3-8B                               # the 8B record (Nov 4-9); old scripts pin it explicitly
 # JIT/compile caches on $SCRATCH: $HOME doesn't support flock from compute nodes (errno 524),
 # which killed FlashInfer's kernel build in job 60824576. Lustre scratch does.
 export FLASHINFER_WORKSPACE_BASE=$SCRATCH/cache            # -> $SCRATCH/cache/.cache/flashinfer

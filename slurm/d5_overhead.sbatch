@@ -17,6 +17,7 @@
 #SBATCH --output=/pscratch/sd/a/ap2568/dbkv/logs/%x-%j.out
 set -uo pipefail
 source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
+export DBKV_MODEL=$DBKV_MODEL_8B   # 8B record, 1 GPU (env.sh default is Qwen3-32B since PLAN 2j)
 export VLLM_SERVER_DEV_MODE=1
 OUT=$DBKV_DATA/runs/d5/$SLURM_JOB_ID; mkdir -p "$OUT"
 PORT=$((8000 + SLURM_JOB_ID % 1000)); URL=http://127.0.0.1:$PORT

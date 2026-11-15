@@ -22,6 +22,7 @@
 #SBATCH --output=/pscratch/sd/a/ap2568/dbkv/logs/%x-%j.out
 set -uo pipefail
 source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
+export DBKV_MODEL=$DBKV_MODEL_8B   # 8B record, 1 GPU (env.sh default is Qwen3-32B since PLAN 2j)
 cd "$DBKV_REPO"
 # Run an exact export of the frozen agent (tag agent-frozen-v1), whatever HEAD's harness/agent contains
 # (Nov 6 fix: this script used to refuse to run once HEAD's run_bird.py gained --prompt brief_aware).

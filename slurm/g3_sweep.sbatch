@@ -28,6 +28,7 @@
 #SBATCH --output=/pscratch/sd/a/ap2568/dbkv/logs/%x-%j.out
 set -uo pipefail   # no -e: a failed point or a dead server is handled below, not fatal
 source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
+export DBKV_MODEL=$DBKV_MODEL_8B   # 8B record, 1 GPU (env.sh default is Qwen3-32B since PLAN 2j)
 
 CTXS=${1:-${G3_CTXS:-4096,8192,20480}}
 RUN_NAME=${RUN_NAME:-main}

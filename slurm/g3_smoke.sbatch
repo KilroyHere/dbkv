@@ -16,6 +16,7 @@
 #SBATCH --output=/pscratch/sd/a/ap2568/dbkv/logs/%x-%j.out
 set -euo pipefail
 source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
+export DBKV_MODEL=$DBKV_MODEL_8B   # 8B record, 1 GPU (env.sh default is Qwen3-32B since PLAN 2j)
 
 OUT=$DBKV_DATA/runs/g3_smoke/$SLURM_JOB_ID
 mkdir -p "$OUT"
