@@ -925,6 +925,11 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 - **P1-e, logging overhead:** burst output tok/s with instrumentation on is within 2% of off (on = mean of the two "on" bursts).
 - **P1-f, admission limit for A(a):** per-task KV, measured as pool × peak KV usage ÷ tasks in flight in the R\* cell, is 2.5–4k tokens. Hence **K = floor(305,328 ÷ that) = 75–120**. That K is used in A(a).
 
+*Addendum (Sun Nov 15, ~16:10 PT, before any Phase 1 data; sweep job 61371316 still pending; the text above is unchanged):* while testing the analysis on the **smoke** turns (Phase 0), the cache hit of turn n ended at P_{n−1} (block-rounded: within 16 tokens in 80% of turns, 32 in the rest) and **never** covered the previous output (0 of 104 turns): the chat template re-renders the history, so the previous reply's ~90 tokens are re-prefilled every turn. The pre-registered **evicted** would count these as evictions. So the analysis **also** reports (the pre-registered shares stay, unchanged):
+- **re-render** = max(0, (P_n − new) − P_{n−1}) for turns whose C_n ≥ P_{n−1} − 32 (the re-rendered previous reply);
+- **evicted proper** = max(0, P_{n−1} − C_n − 32) (the earlier conversation the cache had dropped).
+P1-c's "evicted is the largest share" is judged on the pre-registered definition **and** reported on evicted proper.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
