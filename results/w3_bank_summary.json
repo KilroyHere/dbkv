@@ -1,0 +1,63 @@
+{
+ "draws": 6,
+ "threads": 8,
+ "timeout_s": 60.0,
+ "max_rows": 1000,
+ "memory_limit": "16GB",
+ "attempts": 858,
+ "kept": 783,
+ "by_tenant": {
+  "tpch_sf10": {
+   "pairs": 22,
+   "usable_templates": 19,
+   "kept": 114,
+   "reasons": {
+    "ok": 114,
+    "empty": 6,
+    "rows>1000": 12
+   },
+   "runtime_s_p50": 0.152,
+   "runtime_s_p90": 0.491,
+   "runtime_s_max": 1.368
+  },
+  "tpch_sf100": {
+   "pairs": 22,
+   "usable_templates": 19,
+   "kept": 114,
+   "reasons": {
+    "ok": 114,
+    "empty": 6,
+    "rows>1000": 12
+   },
+   "runtime_s_p50": 1.798,
+   "runtime_s_p90": 5.982,
+   "runtime_s_max": 7.344
+  },
+  "tpcds_sf10": {
+   "pairs": 99,
+   "usable_templates": 95,
+   "kept": 555,
+   "reasons": {
+    "ok": 555,
+    "rows>1000": 27,
+    "empty": 12
+   },
+   "runtime_s_p50": 0.094,
+   "runtime_s_p90": 0.403,
+   "runtime_s_max": 2.445
+  }
+ },
+ "unusable_pairs": [
+  "h11@tpch_sf10",
+  "h11@tpch_sf100",
+  "h16@tpch_sf10",
+  "h16@tpch_sf100",
+  "h20@tpch_sf10",
+  "h20@tpch_sf100",
+  "t02@tpcds_sf10",
+  "t34@tpcds_sf10",
+  "t39@tpcds_sf10",
+  "t98@tpcds_sf10"
+ ],
+ "wall_s": 264.6
+}
