@@ -90,7 +90,7 @@ Every row lists its pre-registered prediction (PLAN §2j), the measured added ga
 |---|---|---|---|---|---|---|
 | Phase 0: KV model, K | — | not yet | | | | |
 | Phase 0: W3 workload | — | 133/143 (template, tenant) pairs usable, 783 gold instances, SF100 gold p50 1.8 s | `w3_bank_summary.json`, `w3_streams_summary.json`, `w3_SHA256SUMS` | | 61362847 | Nov 15 |
-| Phase 0: smoke test | 0 of 20 tasks without SQL | not yet | | | | |
+| Phase 0: smoke test | 0 of 20 tasks without SQL | **PASS**: 0/20 no-SQL; acc 3/20; task p50 12.7 s at c = 4; LLM 82% / DB 13%; KV pool 305,328 tokens; decode step 17.6 ms (batch 1) / 24 ms (batch 64) | `smoke32_summary.json` | | 61369427 | Nov 15 |
 | Phase 1: naive baseline | written before the first job | not yet | | | | |
 | A(a) gateway | ≥ 1.5× throughput at overload | not yet | | | | |
 | A(b) suffix decoding | ≥ 1.5× lower p50 at light load | not yet | | | | |

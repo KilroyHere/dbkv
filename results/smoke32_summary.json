@@ -1,0 +1,65 @@
+{
+ "agent_rc": 0,
+ "wall_s": 76.4,
+ "n": 20,
+ "no_sql": 0,
+ "no_sql_qids": [],
+ "accuracy": 0.15,
+ "accuracy_by_bench": {
+  "tpch": "3/13",
+  "tpcds": "0/7"
+ },
+ "status": {
+  "answered": 20
+ },
+ "turns_mean": 6.2,
+ "task_s_p50": 12.682,
+ "task_s_max": 29.434,
+ "llm_share": 0.815,
+ "db_share": 0.133,
+ "decode_tok_per_s_per_seq_p50": 55.6,
+ "llm_errors": 0,
+ "probe": {
+  "latency_s": 0.359,
+  "tool_calls": [
+   {
+    "name": "list_tables",
+    "arguments": "{}"
+   }
+  ],
+  "content": "",
+  "finish_reason": "tool_calls",
+  "usage": {
+   "prompt_tokens": 384,
+   "total_tokens": 400,
+   "completion_tokens": 16,
+   "prompt_tokens_details": {
+    "cached_tokens": 0,
+    "created_cache_tokens": 384,
+    "multimodal_tokens": null
+   },
+   "completion_tokens_details": null
+  },
+  "parsed_ok": true,
+  "think_text": false
+ },
+ "PASS": true,
+ "kv_pool_tokens": 305328,
+ "server_start_s": 161,
+ "burst_steplog_on": {
+  "n": 64,
+  "prompt_tokens": 2000,
+  "max_tokens": 256,
+  "out_tok_per_s_mean": 861.4
+ },
+ "steplog": {
+  "lines": 4747,
+  "steps_with_details": 4732,
+  "decode_only_step_ms_p50_by_batch": {
+   "1": 17.62,
+   "2": 17.67,
+   "4": 17.76,
+   "64": 24.23
+  }
+ }
+}
