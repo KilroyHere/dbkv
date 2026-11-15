@@ -15,8 +15,8 @@ This file logs the state and any manual steps. If something is changed by hand, 
 | Repo (git clone of github.com/KilroyHere/dbkv) | `/global/cfs/cdirs/m4999/team19/ap2568/dbkv` | Backed up; teammates can read it through ACLs |
 | Python env (CPU tools and stock vLLM) | `$SCRATCH/envs/dbkv-env` | `/global/common/software/m4999` is shared by the whole class and was over quota on 2026-11-04 |
 | Data, traces, DuckDB files, run outputs, logs | `$SCRATCH/dbkv/{tpch,bird,traces,runs,logs}` | Fast and large. Purged after 8 weeks without access |
-| Model weights | `$SCRATCH/huggingface` (`HF_HOME`) | Shared HF cache from the HWs, which already holds Llama-3.1-8B and CodeLlama-34B |
-| Continuum env (vLLM 0.10.2 fork) | Not created yet | Separate env, see `engine/README.md` |
+| Model weights | `$SCRATCH/huggingface` (`HF_HOME`) | Shared HF cache from the HWs, which already holds Llama-3.1-8B and CodeLlama-34B. Qwen3-8B (Nov 4); Qwen3-32B (~65 GB, §2j) after Aryan's approval |
+| Continuum env (vLLM 0.10.2 fork) | `$SCRATCH/envs/continuum-env` | Separate env, see `engine/README.md` |
 
 ## How work happens: one main Claude, on Perlmutter
 
@@ -90,8 +90,14 @@ On Perlmutter, `~/.ssh/config` has a `Host github-dbkv` entry using that key, an
 |---|---|---|---|
 | GPU (m4999_g) | 45 node-hours | 7.7 | 2026-11-03 |
 | CPU | 10 node-hours | — | 2026-11-03 |
+| GPU (m4999_g) | 45 node-hours | 13.6 | 2026-11-07 |
+| CPU | 10 node-hours | 0.5 | 2026-11-07 |
+| **GPU (m4999_g)** | **45 node-hours** | **14.2 (30.8 left)** | **2026-11-15** |
+| **CPU** | **10 node-hours** | **0.5** | **2026-11-15** |
 
-A 1-GPU `shared` job costs ¼ node-hour per hour and gets 16 cores and 64 GB RAM. Re-check with `iris` before big sweeps.
+- A 1-GPU `shared` job costs ¼ node-hour per hour and gets 16 cores and 64 GB RAM.
+- **A full GPU node** (4 × A100-40GB, regular QOS, used from PLAN §2j on) **costs 1 node-hour per hour** and gets 64 cores and 256 GB RAM. The §2j plan is estimated at ~22–35 node-h in total, so Phase 3 will probably need teammates' allocations (to be agreed with Aryan before Phase 2).
+- Re-check with `iris` before each GPU phase, and tell Aryan the estimate first.
 
 ## Setup log
 
@@ -113,3 +119,4 @@ A 1-GPU `shared` job costs ¼ node-hour per hour and gets 16 cores and 64 GB RAM
 | 2026-11-05 | Second session: worktree `dbkv-expert` (branch `expert`); `dbkv-claude start expert` runs tmux `dbkv-expert`, Remote Control `dbkv-expert` | ok: connected on login33. On its first start, `--continue` in the worktree tried to resume the *main* session (worktrees share a project) and failed safely, because main is being served. Named sessions now never use `--continue`. Caveat: the main loop's `--continue` could in principle pick the expert conversation if main restarts while expert's is the most recent; it fails safely while that session is being served |
 | 2026-11-05 | Expert session stopped (tmux dbkv-expert gone; idea parked by Aryan; docs/EXPERT.md and results/expert_* merged to main, harness/expert stays on branch expert) | stopped |
 | 2026-11-07 | `arctic-inference==0.1.1` added to dbkv-env, for vLLM's `--speculative-config` method `suffix` (approved by Aryan) | ok after 2 fixes: system g++ 7.5 lacks C++20, and GCC 14's build needs CXXABI_1.3.15, which NERSC Python's bundled libstdc++ lacks (it stops at 1.3.14 = GCC 13). Working command: `CC=/opt/cray/pe/gcc-native/13/bin/gcc CXX=/opt/cray/pe/gcc-native/13/bin/g++ pip install --no-deps --no-cache-dir arctic-inference==0.1.1`. torch 2.14 / vLLM 0.33 unchanged; never use its `[vllm]` extra (pins vllm 0.10.1). Lock file refreshed |
+| 2026-11-15 | Next phase (PLAN §2j): Qwen3-32B on one full GPU node (TP = 4, regular QOS, `gpu&hbm40g`). Planned setup: Qwen3-32B download (~65 GB, after Aryan's approval) via `perlmutter_setup.sh --model` with `DBKV_MODEL=Qwen/Qwen3-32B`; full-node Slurm templates `slurm/node_*.sbatch`; W3 data under `$SCRATCH/dbkv/w3` | docs updated; setup steps logged below as they are done |

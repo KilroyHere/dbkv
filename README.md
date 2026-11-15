@@ -4,9 +4,9 @@ CS 5470 (Aryan Patel). Many tool-using SQL agents share one or a few GPUs. Every
 
 **Start with [AGENTS.md](AGENTS.md).**
 
-**Status: paused at midpoint (Nov 6).** Part C (naive vs ours, full run) is pre-registered in [docs/PLAN.md](docs/PLAN.md) §2g but not run.
+**Status (Nov 15): next phase, "improving model serving for data agents on one node"** ([docs/PLAN.md](docs/PLAN.md) §2j). Qwen3-32B (dense, BF16, non-thinking) served by one vLLM instance with tensor parallel 4 on a full Perlmutter GPU node (4 × A100-40GB), driving our SQL agent on DuckDB analytics data (TPC-H SF10/SF100, TPC-DS SF10). Five serving options are built one after another, A → C → B → E → D (inference stack, joint speculation, goodput gateway, task-aware eviction, EXPLAIN query scheduling), each measured as the added gain on the best system so far. Phase 0 (setup) is in progress. The midpoint pause (Nov 6) and Part C are superseded.
 
-## Headline results
+## Headline results (8B record, Nov 4–9)
 
 Setup: Qwen/Qwen3-8B on 1× A100-SXM4-40GB (Perlmutter), vLLM, a minimal ReAct SQL agent on BIRD dev (1,534 questions, 11 SQLite databases).
 
@@ -21,6 +21,8 @@ All results and figures are indexed in [results/README.md](results/README.md); t
 | Path | Contents |
 |---|---|
 | `harness/agent/` | The frozen ReAct SQL agent on BIRD (`run_bird.py`, `tools.py`; tag `agent-frozen-v1`) and its analysis |
+| `harness/agent_duckdb/` | The agent on DuckDB (W; tag `agent-duckdb-v1`), being ported to Qwen3-32B and W3 (tag `agent-32b-v1`) |
+| `harness/plancache/` | W / W2 question templates and stream generators; W3 builds on them |
 | `harness/brief/` | Schema-brief generator built from the database alone, and the D2 analyses |
 | `harness/gateway/` | Gateway (admission, priority, routing), open-loop load generator, mock vLLM, summarizer |
 | `harness/` | G3 session replayer, KV-limit calculator, D5 overhead probe |
@@ -34,4 +36,4 @@ All results and figures are indexed in [results/README.md](results/README.md); t
 
 ## Where it runs
 
-Everything runs on Perlmutter. The repo lives at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv`; data and traces go in `$SCRATCH/dbkv/`. Heavy work runs in Slurm jobs, never on login nodes. Setup: [docs/PERLMUTTER.md](docs/PERLMUTTER.md).
+Everything runs on Perlmutter. The repo lives at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv`; data and traces go in `$SCRATCH/dbkv/`. Heavy work runs in Slurm jobs, never on login nodes; from Nov 15, GPU jobs take a full node (1 node-h per hour). Setup: [docs/PERLMUTTER.md](docs/PERLMUTTER.md).

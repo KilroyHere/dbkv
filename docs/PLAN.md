@@ -2,13 +2,15 @@
 
 > **Lab notebook: history and pre-registrations. Start with [docs/OVERVIEW.md](OVERVIEW.md).** (Agents: read [AGENTS.md](../AGENTS.md) first; don't read this file top to bottom.)
 
+*Since Sun Nov 15 2026 (Aryan): **next phase, "improving model serving for data agents on one node"** (§2j). Qwen3-32B (dense, BF16, non-thinking) on one full GPU node (4 × A100-40GB, TP = 4); SQL agent on DuckDB analytics data (TPC-H SF10/SF100, TPC-DS SF10). Five options built in sequence, A → C → B → E → D, with **no go/no-go gates**. This replaces the "paused at midpoint" state. Superseded by it: Part C (§2g), the §5 roadmap and the "no speculative decoding" rule.*
+
 *Framing since Thu Nov 5 2026, evening (Aryan): **serving many SQL agents on shared GPUs without changing their answers.***
 - *Contributions:*
   1. *characterization: time anatomy, the G3 memory limit, the priority test (done);*
   2. *a shared per-database brief as a cached prefix under load;*
   3. *an agent gateway: whole-task admission from `kv_limit.py` plus task-start priority;*
   4. *multi-GPU routing by database.*
-- *Out of scope: broker/DB caching, KV retention for slow queries, the expert adapter, speculative decoding, answer trimming, stateful sessions.*
+- *Out of scope: broker/DB caching, KV retention for slow queries, the expert adapter, speculative decoding, answer trimming, stateful sessions.* *(Nov 15: "speculative decoding" is no longer out of scope; §2j builds suffix decoding (A(b)) and joint speculation (C).)*
 - *The D2 schema-brief work below is kept as written; it becomes contribution (2)'s input.*
 
 *(Earlier header, kept:)* **D2, schema briefs that remove SQL agents' exploration turns**
@@ -21,13 +23,18 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 
 | Item | State |
 |---|---|
+| **Next phase (Nov 15, §2j)** | **Active.** Qwen3-32B (dense, BF16, non-thinking), one vLLM instance with TP = 4 on one full GPU node (4 × A100-40GB, `gpu&hbm40g`, regular QOS, 1 node-h per hour). Workload W3: our DuckDB agent on TPC-H SF10/SF100 and TPC-DS SF10. Options built in order A → C → B → E → D, no gates; predictions in §2j are the pre-registration. Doing Phases 0–2 now; Phase 3 later |
+| Phase 0: setup (§2j) | **In progress.** (a) Qwen3-32B download: waiting for Aryan's approval. (b) `DBKV_MODEL`, (c) full-node templates, (d) `kv_limit.py` for 32B + K, (e) W3 workload with gold SQL (CPU jobs), (f) agent port, tag `agent-32b-v1`, (g) smoke 20 tasks, 0 without SQL: not started |
+| Phase 1: baseline (§2j) | Not started. Prediction is written into §2j before the first job |
+| Phase 2: options A, C, B, E, D (§2j) | Not started. A(a) gateway → A(b) suffix → A(c) W8A8 → A(d) FP8 KV, then C, B, E, D |
+| GPU budget (`iris`, Nov 15) | m4999_g: **14.2 of 45 node-h used, 30.8 left**. CPU: 0.5 of 10. Phases 1–2 are estimated at ~13–24 node-h (§6) |
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
 | Part A (Nov 6) | A1: S3 passes under Aryan's same-job amendment. **A2/P3 NOT MET.** **A3 MET.** **A4: stock collapse ≈ 200 tasks/min;** both plateaus at 190–200/min. 1.443 GPU node-h. `results/a2_phase3.md`, `a3_reqcap.md`, `a4_collapse.md` |
 | Tests S + P (Nov 7, §2h, §2i) | **Done.** **Suffix decoding: S1h PASS (0.51× p50 at c=1)**; ≥1.47× at every c up to 64 (no S2h boundary); 1.55× even at 0% repeats (S3h ratio 0.78); accuracy unchanged, but only 49% identical SQL (**S4h NOT MET**). `results/spec_suffix.md`. **Plan cache closed** (P and P2 fail; Aryan agrees). Follow-up (V1-runner control) proposed, not started |
-| Main session (Nov 9) | **Stopped by Aryan** (`dbkv-claude stop`) after Tests S + P. Nothing running, nothing pending. Restart with `dbkv-claude start`. Next step (V1-runner control) waits for Aryan's OK |
-| **Project state** | **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.** No GPU jobs after Nov 6. |
-| Part C | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). **Not run (paused at midpoint)** |
+| Main session (Nov 9) | **Stopped by Aryan** (`dbkv-claude stop`) after Tests S + P. Nothing running, nothing pending. Restart with `dbkv-claude start`. Next step (V1-runner control) waits for Aryan's OK. *(Nov 15: work resumed under §2j; the V1-runner control is folded into A(b).)* |
+| Project state (Nov 6; **superseded Nov 15** by §2j) | ~~Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.~~ No GPU jobs after Nov 6 (Test S ran Nov 7 with Aryan's approval). |
+| Part C (**superseded Nov 15**, never run) | §2g pre-registered: naive vs ours × 100/170/230/300 per min × 2 reps (~0.75 node-h). Not run; it will not be run (8B / BIRD setup replaced by §2j) |
 | Overnight Nov 5–6 | **Phase 1 done: P1 NOT MET** (compact +4.0 / +2.7 accuracy points vs explore; p95 above explore at 32 and 64), but it halves full's p95 at c = 64 (47 vs 99 s). KV accounting done. **S2 passed** on the retry after one fix (prefix-cache reset; a position-in-job drift of 5–8% was the cause of attempt 1). **Phase 2 done: P2 MET.** At 250/min, both cuts p95 by 82% (144 vs ≥ 786 s) and raises throughput to 190% of stock. Admission alone: −74%; priority alone: −45%. GPU idle 0%, overhead < 0.3 ms. **Phase 3 STOPPED: S3 failed after one fix** (router p50 +10.1% / +10.7% vs the named S2 reference; within the same job it is −5% / +7%). Aryan to decide |
 | **Direction (Nov 5, superseded by the framing above)** | **D2: schema brief** (since Nov 5, Aryan). D3's mechanism is **closed** (G1 kill condition met: duration knowledge buys ≤ 6%). G1–G3, the priority test and the overnight tests are now the characterization section (§11) |
 | Expert adapter (parked Nov 5) | **Negative result**, see [docs/EXPERT.md](EXPERT.md). Handing SQL writing to a BIRD LoRA adapter: accuracy +2.0 ± 2.6 points, 3.3× more invented-name errors, p50 +87%; 0.098 GPU node-h. Only the doc and `results/expert_*` were merged; `harness/expert/` stays on branch `expert` |
@@ -74,7 +81,7 @@ Overnight GPU: 1.12 node-h (stop line 3). Plus 0.006 CPU node-h (simulator).
 **Rules for D2:**
 - GPU expected ~5 node-h; **stop and notify if it passes 8**.
 - `gpu&hbm40g` and `--time` on every job; log everything in `jobs.tsv`.
-- **No speculative decoding** in any arm.
+- **No speculative decoding** in any arm. *(Superseded Nov 15 by §2j: speculative decoding is now built, A(b) and C. Kept as written for the D2 arms it governed.)*
 - Never change a pre-registered rule after seeing data.
 
 **Overnight decision table (Nov 4–5; rules pre-registered in §2b at 21:49 PT before any data; nothing changed afterwards):**
@@ -673,6 +680,8 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 
 *Status note (Aryan, Nov 6): **Project paused at midpoint (Nov 6). Part C is pre-registered (§2g) but not run; resume by replying 'go' to the §2g matrix.***
 
+*Superseded (Aryan, Nov 15): Part C will not be run. The next phase (§2j) replaces it with Qwen3-32B on a full node and the W3 analytics workload. The rules and predictions above stay as written.*
+
 ### 2h. Suffix decoding (Test S) and plan-cache feasibility (Test P) on a shared best-case workload (pre-registered Sat Nov 7 2026 16:06 PT, commit 357ff09, before any agent run on W)
 
 *Drafted by Mac Claude, approved by Aryan. Do not edit; add observations below.*
@@ -828,6 +837,61 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
   - *Prediction check: P1i was predicted ≈ 0.85 at r80 (observed 0.70); P2i was predicted met (it missed narrowly at both rates); the overall failure on r50 was predicted.*
 - *Aryan, Nov 7 (after P2): the plan cache stays closed. Effort goes to suffix decoding. Ideas noted but not pursued: verified (speculative) hints, soft top-k hints with harm measured, same-tenant candidates.*
 
+### 2j. Next phase: improving model serving for data agents on one node (Aryan's plan, Sun Nov 15 2026; pre-registered 13:10 PT, before any 32B or W3 data exists)
+
+*Source: Aryan's plan file `/global/cfs/cdirs/m4999/team19/ap2568/plans/next_phase_plan_2026-11-15.md` (draft Nov 15). It replaces the "paused at midpoint" state. Do not edit the predictions below; add observations under each step. Seen before writing: nothing from Qwen3-32B, a full node or W3. Everything 8B / BIRD / W above is known.*
+
+**Goal.** Make the **model serving** of SQL data agents faster, and measure which mechanism fixes which bottleneck. Start from a setup where serving is clearly the bottleneck, add one mechanism at a time, and compare the full system with a naive baseline at the end.
+
+**Fixed decisions:**
+
+| Item | Decision |
+|---|---|
+| Model | **Qwen/Qwen3-32B** (dense), BF16, non-thinking (`enable_thinking=False`) |
+| Hardware | One Perlmutter GPU node: 4 × A100-SXM4-40GB with NVLink. Always `--constraint=gpu&hbm40g`. Regular QOS (not `shared`), explicit `--time`. **Cost: 1 node-h per hour** |
+| Serving | One vLLM instance, `--tensor-parallel-size 4` |
+| Workload | **W3:** our SQL agent on DuckDB analytics data, TPC-H SF10/SF100 and TPC-DS SF10, with executable gold SQL and fixed-seed streams. Built from the W2 templates (TPC-H 22, TPC-DS 99) |
+| Metrics | p50 and p95 task time, throughput (tasks/min); accuracy as a check only |
+| Process | **No go/no-go gates.** Build all five options, one after another: A → C → B → E → D |
+| Out of scope | Accuracy work (voting, judges, stronger SQL models), GPU SQL engines |
+| Generality check | At the end (Phase 3), the final system once on the MoE Qwen3-30B-A3B |
+
+*Why dense 32B:* it keeps serving the bottleneck (little free compute per step, ~256 KiB of KV per token, expensive tasks), so the mechanisms have room to help. An MoE hides some of this, so it is only the later check.
+
+**Rules for every measurement:**
+1. **Prediction first**, written into this section (or a dated sub-entry of it) before the data exists. A prediction is not a gate: the option is built whatever the result.
+2. **Measure the added gain on the best system so far**, at the same load levels.
+3. **3 repeats**, with error bars. Prefer same-job controls (earlier runs varied 5–16% between nodes).
+4. **Every option is an on/off switch,** so the Phase 3 ablation can remove it.
+5. **Report accuracy** for every configuration, to show answers do not get worse.
+6. **Record negative results** with their measured reason.
+
+**Phase 0, setup:** (a) Aryan approves, then Qwen3-32B (~65 GB) is downloaded into `$HF_HOME`; (b) `DBKV_MODEL` and the `--model` setup step; (c) full-node Slurm templates; (d) `harness/kv_limit.py` for 32B (64 layers, 8 KV heads, head dim 128) with TP, and the admission limit K; (e) W3 at SF10/SF100 with gold SQL, in CPU jobs; (f) agent port to 32B (check the tool-call format in non-thinking mode), frozen as tag **`agent-32b-v1`**; (g) smoke test: 20 tasks, **0 tasks without SQL**.
+
+**Phase 1, baseline:** naive = stock vLLM, no gateway, no speculative decoding, BF16. Load levels: light (1–4 agents), near the ceiling, overload (open-loop Poisson); the ceiling comes from a load sweep. Instrumentation, kept for every later phase: per-step engine logs (decode, prefill and speculative token counts, step time); KV use and prefix-cache hits and misses with the cause of each miss; per task, LLM time, query time and DB queue time. *The Phase 1 prediction is added here before its first job.*
+
+**Phase 2, options in sequence** (each on top of the best system so far; predictions written now, not gates):
+
+| Order | Option | What we build | Prediction |
+|---|---|---|---|
+| 1 | **A. Inference stack** | (a) gateway with whole-task admission (K from the 32B KV model) and task-start priority; (b) suffix decoding; (c) INT8 weights (W8A8); (d) FP8 KV cache | **A(a)** ≥ 1.5× throughput at overload vs stock vLLM. **A(b)** ≥ 1.5× lower p50 at light load. **A(c)** ≥ 1.3× higher ceiling, accuracy within 2 points. **A(d)** ≥ 1.2× higher ceiling if KV memory limits it |
+| 2 | **C. Joint speculation and prefill budget** | vLLM scheduler change: per step, share free compute between speculative tokens (by acceptance score) and tool-output prefill | **C** ≥ 15% higher throughput at the ceiling than the best static vLLM speculation setting, same p50 |
+| 3 | **B. Goodput gateway** | Task state from the tool channel → lookup table (chance of success, remaining work) → priority = chance ÷ work. Under overload only, a forced final answer for the lowest-value tasks | **B** ≥ 15% more correct tasks/min at overload than the best static turn limit; accuracy changes ≤ 1 point below capacity |
+| 4 | **E. Task-aware eviction and preemption** | vLLM block manager: evict finished tasks' blocks first, keep paused tasks' blocks, preempt the lowest-priority task | **E** ≥ 10% fewer prefill tokens at overload |
+| 5 | **D. EXPLAIN query scheduling** | Query gateway in front of DuckDB: EXPLAIN size classes, short queries first with backfilling, linked to the GPU gateway slots | **D** ≥ 25% lower p50 task time with 32 agents on SF100 vs DuckDB's default |
+
+*Why this order:* A has the highest expected value and is the base for the rest; C is the deepest inference work (a dense model has little free compute per step); B saves more because each 32B task is expensive; E matters under high KV pressure, but admission already protects much of the cache; D last, because with a slow dense model the DB is a small share of task time.
+
+**Per-step detail.** Before each step (A(a) … D), a dated sub-entry here adds the exact arms, load levels, repeats and job plan, and may sharpen the prediction above (never weaken it after data).
+
+**Phase 3, evaluation (not in the current request):** naive vs full system at 4–6 load levels × 3 repeats with accuracy; ablation removing one option at a time; the final system once on Qwen3-30B-A3B; negative results with reasons.
+
+**Compute (estimate, full node = 1 node-h per hour):** Phase 1 ~3–4; each option with 3 repeats ~2–4 (all five ~10–20); Phase 3 ~8–10. **Total ~21–34**, against 30.8 left of Aryan's 45 (`iris`, Nov 15). **Before Phase 2, check `iris` and agree with Aryan how to use teammates' allocations.**
+
+**Process for this session (Aryan, Nov 15):** check the budget with `iris` and tell Aryan the estimate before each GPU phase; never leave a GPU job unattended; log every job in `jobs.tsv`; notify Aryan when a job ends or fails, or when his approval is needed. Job submission otherwise needs no per-job "go" (big GPU spends are still asked).
+
+**Superseded by this section:** Part C (§2g), the §5 roadmap, and the "no speculative decoding" rule (Rules for D2 in Status, the §1 out-of-scope line). Each carries a dated note. Still in force: pre-register before data, same-job controls, `gpu&hbm40g`, frozen tags, `jobs.tsv`.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
@@ -902,6 +966,8 @@ Environment: use a separate virtual environment for the Continuum fork. Pin ever
 
 ## 5. Roadmap (Nov 6, Aryan; replaces the old schedule)
 
+*Superseded Nov 15 by §2j (the next-phase plan: Qwen3-32B, full node, options A → C → B → E → D, Phase 3 evaluation). Kept as written.*
+
 Do NOT start any block without pre-registered rules and Aryan's approval of that block.
 
 | Dates | Work | GPU node-h |
@@ -936,6 +1002,23 @@ Do NOT start any block without pre-registered rules and Aryan's approval of that
 | **Mon Dec 7** | Poster session | — |
 
 ## 6. Compute budget
+
+**Full-node budget (Nov 15, §2j).** *`iris`, Sun Nov 15 2026 13:05 PT:* GPU (m4999_g) **14.2 of 45 node-h used, 30.8 left**; CPU (m4999) 0.5 of 10, 9.5 left.
+- From §2j on, GPU jobs take a **whole node** (4 × A100-40GB, regular QOS, `gpu&hbm40g`): **1 node-h per hour of wall time**, 4× the cost of a 1-GPU `shared` job. A 30-min smoke test costs 0.5 node-h; idle server start-up counts too (32B TP=4 load ≈ several minutes).
+
+| Work (§2j) | Node-h (estimate) |
+|---|---|
+| Phase 0 smoke test (server start + 20 tasks, maybe one retry) | ~0.5–1 |
+| Phase 1 baseline + load sweep | ~3–4 |
+| Phase 2, five options × 3 repeats (~2–4 each) | ~10–20 |
+| **Phases 0–2 (this request)** | **~14–25** |
+| Phase 3 (headline, ablation, MoE check) | ~8–10 |
+| **Total** | **~22–35, vs 30.8 left** |
+
+- Phases 0–2 fit Aryan's cap; Phase 3 probably does not. **Agree with Aryan how to use teammates' allocations before Phase 2** (and re-check `iris` before each GPU phase).
+- CPU work for W3 (TPC-DS SF10 already exists; TPC-H SF10/SF100 exist; gold-SQL execution on SF100) is estimated at < 1 CPU node-h.
+
+*Earlier budget notes (kept as written):*
 
 *`iris`, Sat Nov 7 2026 (before the suffix-decoding / plan-cache tests):*
 - *GPU (m4999_g): **13.6 node-h used of the 45 per-user cap, 31.4 left.***

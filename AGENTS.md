@@ -7,7 +7,7 @@ dbkv is Aryan Patel's CS 5470 project, done solo, on NERSC Perlmutter.
 1. **AGENTS.md** (this file).
 2. **[docs/OVERVIEW.md](docs/OVERVIEW.md)**: the project, the setup, the findings and the glossary.
 3. **[results/README.md](results/README.md)**: every result file and figure, with what it shows.
-4. Only then, **the one section of [docs/PLAN.md](docs/PLAN.md) you need** (its Status table, §2g for Part C, §5 for the roadmap).
+4. Only then, **the one section of [docs/PLAN.md](docs/PLAN.md) you need** (its Status table, and **§2j for the current plan**).
 
 **Do not read PLAN.md top to bottom.** It is a lab notebook: the history of every direction and every pre-registration, kept as written. Superseded sections are still in it.
 
@@ -17,7 +17,13 @@ dbkv is Aryan Patel's CS 5470 project, done solo, on NERSC Perlmutter.
 2. **Where time goes:** in the real agent's task time, LLM decode is 78–90% (89% in the explore arm) and the database is 3.6% (`results/t2_summary.md`, `results/d2_step5.md`).
 3. **KV memory limit:** `harness/kv_limit.py` predicted 32 / 16 / 6.5 concurrent sessions at 4k / 8k / 20k context, and the measured cliff is right there (`results/g3_summary.md`).
 4. **Gateway:** at 250 tasks/min, admission + task-start priority ("both") cuts p95 by 82% (144 s vs stock ≥786 s) and gives 1.9× throughput (199 vs 105/min). It beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% (`results/phase2_gateway.md`, `results/a3_reqcap.md`).
-5. **Paused at midpoint (Nov 6).** Part C (naive vs ours, full run) is pre-registered in PLAN §2g but not run. It resumes when Aryan replies "go" to the §2g matrix.
+5. **Next phase (since Nov 15; PLAN §2j): improving model serving for data agents on one node.** This replaces the Nov 6 "paused at midpoint" state; Part C (§2g) will not be run.
+   - **Setup:** Qwen/Qwen3-32B (dense, BF16, non-thinking), one vLLM instance with `--tensor-parallel-size 4` on one full GPU node (4 × A100-40GB).
+   - **Workload (W3):** our SQL agent on DuckDB analytics data, TPC-H SF10/SF100 and TPC-DS SF10, with executable gold SQL (built from the W2 templates).
+   - **Process:** no go/no-go gates. Phase 0 setup → Phase 1 naive baseline → Phase 2 options built in order **A → C → B → E → D**, each an on/off switch, each measured as the added gain on the best system so far (3 repeats, same-job controls). A prediction goes into PLAN §2j before each step. Accuracy is reported only as a check.
+   - **Out of scope:** accuracy work, GPU SQL engines.
+   - **Where it stands:** see the PLAN Status table (Phase 0 rows).
+6. Everything in items 1–4 is the **8B / 1-GPU / BIRD** record; its numbers do not carry over to 32B.
 
 ## Relation to Team 19's project
 
@@ -47,29 +53,30 @@ From a GitHub clone (github.com/KilroyHere/dbkv; a normal `git clone` includes t
 ## Rules
 
 - **Heavy work runs only in Slurm jobs, never on the login node.** Heavy work that doesn't need a GPU goes on CPU nodes (`--constraint=cpu`, `shared` QOS, 16–32 cores). Job scripts live in `slurm/` and start with `source setup/env.sh`.
-- **No GPU jobs run while the project is paused.**
 - **Every GPU job uses `#SBATCH --constraint=gpu&hbm40g`.** Plain `gpu` can land on an A100-80GB, whose ~3× larger KV pool invalidates every memory result (job 60825603, Nov 4).
 - **Every job gets a `--time` limit.** Never leave a GPU job unattended; check `squeue -u $USER` before ending a session.
 - **Log every job in `$SCRATCH/dbkv/logs/jobs.tsv`:** one row per job (date, job id, purpose, partition, estimated node-h). When it ends, fill in that row's actual node-h and end state from `sacct -j <id>` or `setup/job-nh <id>`. Don't add a second row. A job missing from `squeue` has not necessarily finished.
-- **Budget:** check GPU budget with `iris` before any sweep. A 1-GPU `shared` job costs ¼ node-h per hour. The CPU cap is 10 node-h per user.
+- **Budget:** check GPU budget with `iris` before each GPU phase, and tell Aryan the estimate first. **A full GPU node (regular QOS, used from §2j on) costs 1 node-h per hour of wall time**; a 1-GPU `shared` job costs ¼ node-h per hour. The GPU cap is 45 node-h per user (30.8 left on Nov 15), the CPU cap 10. Full-node job templates: `slurm/node_*.sbatch` (added in Phase 0 (c)).
 - **Pre-register before running.** Write the rules and predictions into PLAN.md before any data exists. Never edit them afterwards; add observed numbers next to them.
 - **Prefer same-job controls.** Nodes vary by up to 16% in speed, so compare arms inside one job where possible.
-- **Frozen tags:** `agent-frozen-v1` (commit `220001e`) and `system-frozen-v1` (`0002aae`). Experiment jobs run files exported from the tag, not the working tree.
+- **Frozen tags:** `agent-frozen-v1` (commit `220001e`), `system-frozen-v1` (`0002aae`) and `agent-duckdb-v1` (the W port, Nov 7) belong to the 8B record. **New (§2j):** `agent-32b-v1` (the agent ported to Qwen3-32B and W3; set after the Phase 0 smoke test), `workload-w3-v1` (W3 templates, gold SQL and stream generator), and `system-32b-<step>` for the best system after each Phase 2 step (e.g. `system-32b-A`). Experiment jobs run files exported from the tag, not the working tree.
 - **Where things go:** code in this repo (CFS); data, traces, run outputs and logs in `$SCRATCH/dbkv`; only small summaries in `results/`.
 - **Git:** commit and push after each finished step. The remote is github.com/KilroyHere/dbkv, through the `github-dbkv` deploy key.
-- **Notify Aryan** with `dbkv-notify "<subject>"` (body on stdin), only for a job ending or failing, a gate result, or being blocked on his approval. It mails `ap2568@nersc.gov`; only `nersc.gov` and `lbl.gov` recipients work from Perlmutter.
+- **Notify Aryan** with `dbkv-notify "<subject>"` (body on stdin), only for a job ending or failing, a step's result, or being blocked on his approval. It mails `ap2568@nersc.gov`; only `nersc.gov` and `lbl.gov` recipients work from Perlmutter.
 - **No downloads** (models, datasets, packages) without Aryan's approval.
 - **Setup changes** are logged in [docs/PERLMUTTER.md](docs/PERLMUTTER.md), or folded into `setup/perlmutter_setup.sh`.
 
 ## Environment
 
-`source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh`: Python 3.11, vLLM, DuckDB in `$SCRATCH/envs/dbkv-env`, `HF_HOME=$SCRATCH/huggingface`. Model: Qwen/Qwen3-8B on 1× A100-SXM4-40GB.
+`source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh`: Python 3.11, vLLM 0.33, DuckDB in `$SCRATCH/envs/dbkv-env`, `HF_HOME=$SCRATCH/huggingface`. Model (since Nov 15): **Qwen/Qwen3-32B** (`DBKV_MODEL`), BF16, TP = 4 on one full node of 4 × A100-SXM4-40GB. The 8B record used Qwen/Qwen3-8B on 1× A100-SXM4-40GB (still in the cache).
 
 ## Where things are
 
 | Path | What |
 |---|---|
 | `harness/agent/` | The frozen ReAct SQL agent on BIRD (`run_bird.py`, `tools.py`) and its analysis |
+| `harness/agent_duckdb/` | The agent on DuckDB (W, Nov 7); ported to Qwen3-32B and W3 in §2j Phase 0 |
+| `harness/plancache/` | W / W2 templates and stream generators; the starting point of W3 |
 | `harness/brief/` | Schema-brief generator (full, compact, lexical, llm, oracle) and D2 analyses |
 | `harness/gateway/` | Gateway (admission, priority, routing), open-loop load generator, mock vLLM, summarizer |
 | `harness/` | G3 replayer, KV-limit calculator, D5 probe |

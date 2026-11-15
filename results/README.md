@@ -11,7 +11,9 @@ Labels (G1–G3, Test 1–3, D2–D5, Phase 1–3, P1–P3, A1–A4, arms, polic
 - **Arms:** explore (no brief), full, compact, lexical, llm, oracle.
 - **Policies:** stock, priority, admission, both, reqcap32/64.
 
-Setup for every GPU number: Qwen/Qwen3-8B (bf16, non-thinking, temperature 0) on one NVIDIA A100-SXM4-40GB (NERSC Perlmutter), vLLM 0.33.0, KV pool 139,232 tokens. Benchmark: BIRD dev, 1,534 questions over 11 SQLite databases.
+**Everything in the tables below is the 8B record (Nov 4–9).** Results of the next phase (Qwen3-32B on a full node, PLAN §2j) go in [the last section](#qwen3-32b-on-a-full-node-plan-2j-since-nov-15).
+
+Setup for every GPU number below: Qwen/Qwen3-8B (bf16, non-thinking, temperature 0) on one NVIDIA A100-SXM4-40GB (NERSC Perlmutter), vLLM 0.33.0, KV pool 139,232 tokens. Benchmark: BIRD dev, 1,534 questions over 11 SQLite databases.
 
 ## Findings
 
@@ -77,3 +79,23 @@ Every file in `results/` is listed in one of the tables above or here.
 The two non-`fig_` plots, `g1v2_gap_vs_ratio.png` and `g1v2b_gap_vs_ratio.png`, are not drawn by `figures.py`. They come from `plot()` in `sim/g1_grid.py`, written when the grid ran. You can redraw them from the matching `results/g1v2*_gap.csv` by calling `sim.g1_grid.plot(rows, path)`; the script has no command-line option for this.
 
 **Summary:** 4 figures rebuild from `results/` alone (G1 ×2, priority test, Phase 2). `fig_g2_explain.png` rebuilds only partly. 7 need raw run files. **On Perlmutter (project m4999), all 12 rebuild from the CFS copy `dbkv-data/runs/`** (verified Nov 6, byte-identical). From a GitHub clone without that copy, only the first 4 work.
+
+## Qwen3-32B on a full node (PLAN §2j, since Nov 15)
+
+Setup for every number in this section: **Qwen/Qwen3-32B** (dense, BF16, non-thinking, temperature 0), one vLLM 0.33 instance with `--tensor-parallel-size 4` on one Perlmutter GPU node (4 × A100-SXM4-40GB, NVLink). Workload **W3**: the DuckDB agent on TPC-H SF10/SF100 and TPC-DS SF10 with executable gold SQL. Numbers from the 8B tables above do not carry over.
+
+Every row lists its pre-registered prediction (PLAN §2j), the measured added gain on the best system so far (mean ± spread over 3 repeats), accuracy as a check, and the job ids. Planned file names: `w3_*` (workload), `kv32_*` (KV model and K), `base32_*` (Phase 1), `opt_A{a,b,c,d}_*`, `opt_C_*`, `opt_B_*`, `opt_E_*`, `opt_D_*` (Phase 2).
+
+| Step | Prediction (§2j) | Measured | Result file(s) | Figure | Job ids | Date |
+|---|---|---|---|---|---|---|
+| Phase 0: KV model, K | — | not yet | | | | |
+| Phase 0: W3 workload, smoke test | 0 of 20 tasks without SQL | not yet | | | | |
+| Phase 1: naive baseline | written before the first job | not yet | | | | |
+| A(a) gateway | ≥ 1.5× throughput at overload | not yet | | | | |
+| A(b) suffix decoding | ≥ 1.5× lower p50 at light load | not yet | | | | |
+| A(c) W8A8 | ≥ 1.3× higher ceiling, accuracy ±2 points | not yet | | | | |
+| A(d) FP8 KV | ≥ 1.2× higher ceiling if KV-limited | not yet | | | | |
+| C joint speculation | ≥ +15% throughput at the ceiling vs best static speculation | not yet | | | | |
+| B goodput gateway | ≥ +15% correct tasks/min at overload | not yet | | | | |
+| E task-aware eviction | ≥ 10% fewer prefill tokens at overload | not yet | | | | |
+| D EXPLAIN scheduling | ≥ 25% lower p50, 32 agents, SF100 | not yet | | | | |

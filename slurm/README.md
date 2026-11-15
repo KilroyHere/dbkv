@@ -1,12 +1,13 @@
 # slurm: Perlmutter job scripts
 
-Every GPU script uses `--constraint=gpu&hbm40g` and sets `--time`. A 1-GPU `shared` job costs ¼ node-h per hour. Log each job in `$SCRATCH/dbkv/logs/jobs.tsv`.
+Every GPU script uses `--constraint=gpu&hbm40g` and sets `--time`. A 1-GPU `shared` job costs ¼ node-h per hour; **a full GPU node (regular QOS) costs 1 node-h per hour**. Log each job in `$SCRATCH/dbkv/logs/jobs.tsv`, and check `iris` before each GPU phase.
 
-**No GPU jobs run while the project is paused (since Nov 6).** Labels are defined in the [glossary](../docs/OVERVIEW.md#6-glossary); exact submissions are in [docs/REPRODUCE.md](../docs/REPRODUCE.md).
+**Since Nov 15 (PLAN §2j), new GPU work runs on full-node templates `node_*.sbatch`** (added in Phase 0 (c)): `-q regular`, `-C gpu&hbm40g`, `-N 1 --gpus-per-node=4`, explicit `--time`, one vLLM instance with `--tensor-parallel-size 4` serving Qwen3-32B. The 1-GPU scripts below are the 8B record. `fullrun.sbatch` (Part C) is superseded and will not be run. Labels are defined in the [glossary](../docs/OVERVIEW.md#6-glossary); exact submissions are in [docs/REPRODUCE.md](../docs/REPRODUCE.md).
 
 | Script | What it runs | Result | Status |
 |---|---|---|---|
-| `fullrun.sbatch` | Part C: naive (full schema + stock vLLM) vs ours (compact + gateway "both"), from tag `system-frozen-v1` | PLAN §2g (not run) | **current, waiting for "go"** |
+| `fullrun.sbatch` | Part C: naive (full schema + stock vLLM) vs ours (compact + gateway "both"), from tag `system-frozen-v1` | PLAN §2g (not run) | superseded Nov 15 (never run) |
+| `spec_suffix.sbatch` | Test S: suffix decoding off vs on, DuckDB agent on W, 1 GPU | `spec_suffix.md` | closed (8B) |
 | `gw_multi.sbatch` | Same-job comparisons across vLLM configs (restarts vLLM): stock / both / `--max-num-seqs` caps / direct | `a3_reqcap.md`, `a4_collapse.md` | current |
 | `gw_phase2.sbatch` | Gateway on 1 GPU: stock / priority / admission / both × arrival rates; S2 self-check (direct vs gateway) | `phase2_gateway.md` | current |
 | `gw_phase3.sbatch` | 2 vLLM replicas behind the gateway: round-robin / least-loaded / affinity routing; S3 self-check | `a2_phase3.md` | closed (routing dropped) |

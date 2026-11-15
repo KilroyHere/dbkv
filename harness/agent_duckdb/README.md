@@ -1,5 +1,7 @@
 # harness/agent_duckdb: the frozen agent on W (PLAN §2h)
 
+> **Next phase (PLAN §2j, Nov 15):** this agent is being ported to **Qwen/Qwen3-32B** (BF16, non-thinking, served with TP = 4) and to the **W3** analytics workload (TPC-H SF10/SF100, TPC-DS SF10, executable gold SQL). The port keeps the loop, prompt, tools and decoding below unless a change is needed for 32B (e.g. the tool-call format in non-thinking mode); every change is listed in a "Port to 32B" section here and frozen as tag **`agent-32b-v1`** after the Phase 0 smoke test (20 tasks, 0 without SQL). The description below is the `agent-duckdb-v1` state.
+
 `run_w.py` and `tools_duckdb.py` are copies of `agent-frozen-v1:harness/agent/run_bird.py` and `tools.py`, kept as close as possible. The loop, SYSTEM prompt, NUDGE and LAST messages, tool specs and texts, decoding (temperature 0, max_tokens 1024, ≤ 15 turns, `tool_choice` "none" on the last turn, `enable_thinking=False`), final-SQL extraction, truncation (40 rows, 3000 chars), error classes and the "real names" hint are unchanged. The prompt and tool texts still say "SQLite", word for word.
 
 What differs from `agent-frozen-v1`, and nothing else:
