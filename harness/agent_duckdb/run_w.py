@@ -6,7 +6,9 @@ agent-32b-v1 (PLAN 2j, Qwen3-32B on W3), the only changes from agent-duckdb-v1:
   - --brief-map tpch=FILE,tpcds=FILE: one shared compact brief per benchmark (W3 has TPC-H and TPC-DS tenants);
   - grading against the stream's stored canonical gold rows (tools_duckdb.canon = harness/w3/build_w3.canon) when the task has
     gold_rows, so SF100 gold queries are not re-run; the prediction's result is fetched up to 1001 rows;
-  - tasks.jsonl also records bench, gold_runtime_s and llm_s (sum of client-side chat time).
+  - tasks.jsonl also records bench, gold_runtime_s, llm_s (sum of client-side chat time), db_wall_s (sum of tool
+    wall time) and db_queue_s = db_wall_s - db_s (thread-pool wait + connect: the DB queue time); each tool record
+    gets wall_s.
   python harness/agent_duckdb/run_w.py --url $VLLM_URL --stream $DBKV_DATA/w3/streams/w3_mix_s0.jsonl --n 20 \
       --brief-map tpch=$DBKV_DATA/w3/brief_tpch_compact.txt,tpcds=$DBKV_DATA/w3/brief_tpcds_compact.txt --out DIR
 
@@ -81,7 +83,7 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
     q = task["question"] + (f"\nHint: {task['evidence']}" if task.get("evidence") else "")
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": q}]
     async with sem:
-        t_start = time.monotonic(); db_time = 0.0; llm_time = 0.0; last_ok_sql = None; answer = None; status = "max_turns"
+        t_start = time.monotonic(); db_time = 0.0; db_wall = 0.0; llm_time = 0.0; last_ok_sql = None; answer = None; status = "max_turns"
         n = 0; prompt_tok = 0
         for n in range(1, a.max_turns + 1):
             final = n == a.max_turns  # turn budget: the last reply must be the answer
@@ -118,11 +120,13 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
                     args = json.loads(c["function"].get("arguments") or "{}")
                 except json.JSONDecodeError:
                     args = {}
+                tw = time.monotonic()
                 text, info = await asyncio.to_thread(tools.call, db, name, args)
-                db_time += info["runtime_s"]
+                wall = time.monotonic() - tw
+                db_time += info["runtime_s"]; db_wall += wall
                 if name == "execute_sql" and info["error"] is None:
                     last_ok_sql = info["sql"]
-                row["tools"].append(dict(name=name, sql=info["sql"], runtime_s=round(info["runtime_s"], 5),
+                row["tools"].append(dict(name=name, sql=info["sql"], runtime_s=round(info["runtime_s"], 5), wall_s=round(wall, 5),
                                          error=info["error"], rows=info["rows"]))
                 messages.append({"role": "tool", "tool_call_id": c.get("id", name), "content": text})
             turns_out.append(row)
@@ -147,7 +151,8 @@ async def run_task(http, a, task, sem, turns_out, tasks_out):
                           pred_sql=pred, used_answer=bool(answer), correct=bool(correct), pred_error=why,
                           final_text=final_text, tenant=task["tenant"], template_id=task["template_id"],
                           phrasing_id=task["phrasing_id"], is_repeat=bool(task["is_repeat"]), pos=task.get("pos"),
-                          bench=task.get("bench"), gold_runtime_s=task.get("gold_runtime_s"), llm_s=round(llm_time, 3)))
+                          bench=task.get("bench"), gold_runtime_s=task.get("gold_runtime_s"), llm_s=round(llm_time, 3),
+                          db_wall_s=round(db_wall, 4), db_queue_s=round(db_wall - db_time, 4)))
     print(f"[{len(tasks_out)}] {task['qid']} {status} turns={n} {task_s:.1f}s correct={correct}", flush=True)
 
 

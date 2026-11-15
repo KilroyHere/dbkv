@@ -13,12 +13,12 @@
 #SBATCH --mem=80G
 #SBATCH --time=01:30:00
 #SBATCH --output=/pscratch/sd/a/ap2568/dbkv/logs/%x-%j.out
-set -euo pipefail
+set -uo pipefail
 source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
 cd "$DBKV_REPO"
 echo "$(date -Is) $(hostname) job ${SLURM_JOB_ID:-} repo $(git rev-parse --short HEAD)"
 if [[ ${1:-all} != streams ]]; then
-  python -u harness/w3/build_w3.py bank --draws 6 --workers 4 --threads 8
+  python -u harness/w3/build_w3.py bank --draws 6 --workers 4 --threads 8 || { echo "bank FAILED"; exit 1; }
 fi
-python -u harness/w3/build_w3.py streams --n 1000 --seeds 0 1 2 3 4
+python -u harness/w3/build_w3.py streams --n 1000 --seeds 0 1 2 3 4 || { echo "streams FAILED"; exit 1; }
 echo "$(date -Is) done"
