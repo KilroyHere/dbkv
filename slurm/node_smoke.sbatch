@@ -5,6 +5,9 @@
 #      then a fixed burst x3 (harness/w3/burst.py: 64 requests, 2000-token prompts, 256 output tokens);
 #   2. restart with instrumentation off: the same burst x3  -> logging-overhead control (same job).
 #   sbatch --time=00:50:00 slurm/node_smoke.sbatch
+# Short form for the debug QOS (30 min max): SMOKE_OFF=0 skips part 2 (the off-server burst; the overhead
+# control then runs in the Phase 1 sweep job):
+#   SMOKE_OFF=0 sbatch -q debug --time=00:30:00 slurm/node_smoke.sbatch
 # Estimate: 2 server starts (~5-10 min each, the first compiles) + agent ~5 min + bursts ~4 min -> ~0.4-0.5 node-h.
 #SBATCH --job-name=n32_smoke
 #SBATCH --account=m4999_g
@@ -40,6 +43,7 @@ node_wait_idle $URL
 python -u harness/w3/burst.py --url $URL --label steplog_on --out "$OUT/burst_on.json"
 curl -s $URL/metrics | grep -E '^vllm:(prefix_cache|num_preemptions|kv_cache_usage)' > "$OUT/metrics_on_end.txt"
 node_stop_vllm
+if [[ ${SMOKE_OFF:-1} == 0 ]]; then echo "$(date -Is) done (SMOKE_OFF=0: no off-server burst); smoke rc $SMOKE_RC"; exit $SMOKE_RC; fi
 
 PORT=$(node_free_port); URL=http://127.0.0.1:$PORT
 NODE_STEPLOG=0 node_start_vllm $PORT "$OUT/server_off.log" || exit 3
