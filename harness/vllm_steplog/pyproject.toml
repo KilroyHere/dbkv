@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbkv-steplog"
+version = "0.1.0"
+description = "dbkv: per-step vLLM engine log (PLAN 2j Phase 1 instrumentation)"
+requires-python = ">=3.10"
+
+[project.entry-points."vllm.stat_logger_plugins"]
+dbkv_steplog = "dbkv_steplog:StepLogger"
+
+[tool.setuptools]
+packages = ["dbkv_steplog"]

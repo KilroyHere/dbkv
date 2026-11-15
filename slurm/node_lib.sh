@@ -14,6 +14,10 @@
 
 NODE_TP=${NODE_TP:-4}; NODE_UTIL=${NODE_UTIL:-0.9}; NODE_MAXLEN=${NODE_MAXLEN:-32768}
 NODE_START_TIMEOUT=${NODE_START_TIMEOUT:-1500}
+# Phase 1 instrumentation, on by default in every 2j job (NODE_STEPLOG=0 turns it off, e.g. for the overhead control):
+# per-step engine log via the dbkv_steplog plugin (harness/vllm_steplog) -> $DBKV_STEPLOG, iteration details,
+# sampled KV eviction events. The plugin is inert when DBKV_STEPLOG is unset.
+NODE_STEPLOG=${NODE_STEPLOG:-1}
 NODE_SERVER_PID=
 
 node_free_port() {
@@ -33,11 +37,19 @@ node_check_gpus() {  # abort unless this node has exactly NODE_TP A100-SXM4-40GB
 node_start_vllm() {  # $1 = port, $2 = server log. Flags = the 2j base set + NODE_VLLM_EXTRA.
   local port=$1 log=$2
   local model=${NODE_MODEL:-$DBKV_MODEL}
-  echo "$(date -Is) vllm serve $model TP=$NODE_TP util=$NODE_UTIL maxlen=$NODE_MAXLEN extra=[${NODE_VLLM_EXTRA:-}]"
+  echo "$(date -Is) vllm serve $model steplog=$NODE_STEPLOG TP=$NODE_TP util=$NODE_UTIL maxlen=$NODE_MAXLEN extra=[${NODE_VLLM_EXTRA:-}]"
+  local obs=()
+  if [[ $NODE_STEPLOG == 1 ]]; then
+    obs=(--enable-logging-iteration-details --kv-cache-metrics)
+    export DBKV_STEPLOG=${log%.log}_steps.jsonl   # one step log per server start
+    echo "steplog: $DBKV_STEPLOG"
+  else
+    unset DBKV_STEPLOG
+  fi
   setsid vllm serve "$model" --port "$port" --tensor-parallel-size "$NODE_TP" \
     --gpu-memory-utilization "$NODE_UTIL" --max-model-len "$NODE_MAXLEN" \
     --enable-prefix-caching --enable-prompt-tokens-details --enable-per-request-metrics \
-    --seed 0 --enable-auto-tool-choice --tool-call-parser hermes ${NODE_VLLM_EXTRA:-} > "$log" 2>&1 &
+    --seed 0 --enable-auto-tool-choice --tool-call-parser hermes "${obs[@]}" ${NODE_VLLM_EXTRA:-} > "$log" 2>&1 &
   NODE_SERVER_PID=$!
   local t0=$SECONDS
   while (( SECONDS - t0 < NODE_START_TIMEOUT )); do
