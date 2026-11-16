@@ -6,7 +6,8 @@
 final reply with a ```sql``` block (or at once when tool_choice == "none"). Each reply sleeps --delay s.
 --fcfs rejects bodies with a "priority" field (400), like vLLM without --scheduling-policy priority.
 /metrics: Prometheus text with num_requests_running/waiting, kv usage and prefix-cache counters.
-/mock/log: JSON list of {t, priority, task_id, db, n_msgs} for each request received. /health.
+/mock/log: JSON list of {t, priority, task_id, db, n_msgs, tool_choice, last_role, last_content} for each
+request received. /health.
 """
 import argparse, asyncio, json, time
 
@@ -19,7 +20,9 @@ async def chat(req):
     a = req.app["a"]
     body = await req.json()
     STATE["log"].append(dict(t=time.time(), priority=body.get("priority"), task_id=req.headers.get("x-task-id"),
-                             db=req.headers.get("x-db"), n_msgs=len(body["messages"])))
+                             db=req.headers.get("x-db"), n_msgs=len(body["messages"]),
+                             tool_choice=body.get("tool_choice"), last_role=body["messages"][-1].get("role"),
+                             last_content=(body["messages"][-1].get("content") or "")[:300]))
     if a.fcfs and "priority" in body:
         return web.json_response({"error": "priority set but scheduling policy is fcfs"}, status=400)
     STATE["running"] += 1
