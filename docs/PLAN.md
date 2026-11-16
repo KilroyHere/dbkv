@@ -953,6 +953,8 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 - *Stock collapse past capacity: throughput 54.8 → 36.2/min from 100 to 180/min arrivals.*
 - *Time split at 30–40/min: LLM ~71%, DB query ~26%, DB queue ~2% (P1-d is judged at R\*).*
 
+*Decision (Aryan, Mon Nov 16 2026, after the sweep; a deviation from the pre-registered ceiling rule, which no rate met):* **R\* = 40/min, R_o = 60/min.** R\* is the highest swept rate where vLLM has 0 waiting requests, p50 stays near light-load p50 (20.6 vs 17.9 s at 20/min), and throughput ≥ 0.95 × the *realized* arrival rate (40/min: 34.4 vs 36.0, 0.955). R_o = 1.5 × R\*. Repeat jobs as pre-registered otherwise: `closed:1:30 closed:4:60 open:40 open:60`, seeds 0 / 1 / 2, in parallel. P1-c and P1-d are judged at these R\* / R_o.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
