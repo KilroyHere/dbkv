@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbkv-taskevict"
+version = "0.1.0"
+description = "dbkv option E: task-aware KV eviction for vLLM 0.33 V1 (general plugin, inert unless DBKV_TASKEVICT=1)"
+requires-python = ">=3.10"
+
+[project.entry-points."vllm.general_plugins"]
+dbkv_taskevict = "dbkv_taskevict:register"
+
+[tool.setuptools]
+packages = ["dbkv_taskevict"]
