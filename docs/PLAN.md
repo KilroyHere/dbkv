@@ -930,6 +930,8 @@ Each job restarts vLLM once (FCFS ↔ priority). No borderline repeats: A3 (−6
 - **evicted proper** = max(0, P_{n−1} − C_n − 32) (the earlier conversation the cache had dropped).
 P1-c's "evicted is the largest share" is judged on the pre-registered definition **and** reported on evicted proper.
 
+*Amendment (Sun Nov 15, ~16:45 PT, before any Phase 1 data; logistics only):* the 1.5-h regular-QOS sweep (61371316) waited > 1 h for a node, so the sweep also runs as three 30-min debug-QOS jobs on possibly different nodes: A = `burst open:60 open:100` (61374027), B = `open:140 open:180` (61374028), C = `open:240 restart:off burst restart:on burst` (61374029). Whichever starts first wins: if a part starts, 61371316 is cancelled; if 61371316 starts first, the parts are cancelled. The ceiling rule, cells and predictions are unchanged; the A-B-A logging control stays inside one job (C). Node-to-node variation can move the sweep's throughput by up to ~16%, which matters only for picking R\* from a coarse grid; the repeats measure every level within one job.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
