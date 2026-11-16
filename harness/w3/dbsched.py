@@ -7,7 +7,7 @@ an executor that sees every DuckDB call (function, db path, tool name, SQL) and 
 id and task start time, set by loadgen_w3.py).
 
     make_executor("off", workers=32)       # a plain ThreadPoolExecutor(32): today's behaviour, byte for byte
-    make_executor("explain", workers=32, long_cap=2, heavy_cap=6, order="taskstart", log_path=...)
+    make_executor("explain", workers=32, long_cap=3, heavy_cap=8, order="taskstart", log_path=...)
     make_executor("observe", workers=32, log_path=...)   # FIFO like off, but classifies in the background and logs
 
 SchedExecutor ("explain"):
@@ -30,6 +30,11 @@ SchedExecutor ("explain"):
      instance (per file), not per query, so the only per-query-thread lever is the agent tools module's THREADS
      constant, which tools.connect applies on every connection. Default: unchanged (8).
   The agent's 60 s query timer starts inside tools.call, so time spent waiting here never counts toward it.
+  Deadline (deadline_s, default 60 = the agent's TIMEOUT_S, counted from submission): a call still running at
+  submit + deadline_s is interrupted (con.interrupt() on the connections it opened; the agent's tools.connect is
+  wrapped at runtime to register them), and a call still waiting then is started at once and interrupted, so the
+  agent sees DuckDB's own timeout error exactly as without D. Without it, D removes the load shedding that the
+  60 s timeout gives under overload, and the long backlog grows without bound (CPU bench run2, Nov 16).
   3. log: one JSONL row per DuckDB call (class, prediction, features, EXPLAIN ms, wait, run, runtime, error,
      running counts) and a per-class summary (`summary()`).
 
@@ -48,6 +53,24 @@ sys.path.insert(0, os.path.join(HERE, "..", "..", "calib"))
 
 # Set by the load generator in each task's coroutine; to_thread copies the context into the submission.
 TASK = contextvars.ContextVar("dbkv_task", default=None)  # (task_id, task_start_epoch)
+_CUR = threading.local()  # the _Item running on this worker thread (connect wrapper registers connections on it)
+
+
+def wrap_connect(mod):
+    """Wrap the agent tools module's connect() so connections opened inside a scheduled call can be interrupted
+    at the call's deadline. Behaves exactly like the original outside scheduled calls. Returns the original."""
+    if getattr(mod, "_dbsched_orig_connect", None) is None:
+        orig = mod.connect
+
+        def connect(db_path):
+            con = orig(db_path)
+            it = getattr(_CUR, "item", None)
+            if it is not None:
+                it.cons.append(con)
+            return con
+        mod._dbsched_orig_connect = orig
+        mod.connect = connect
+    return mod._dbsched_orig_connect
 
 CLASSES = ["meta", "error", "short", "medium", "long"]
 RANK = {"meta": 0, "error": 0, "short": 1, "medium": 2, "long": 3, "unclassified": 1}
@@ -60,7 +83,7 @@ def make_executor(mode="off", workers=32, **kw):
     if mode == "explain":
         return SchedExecutor(workers, **kw).start()
     if mode == "observe":  # FIFO, no caps, never waits on EXPLAIN: the default's behaviour, with D's per-call log
-        kw.update(long_cap=workers, heavy_cap=workers, order="fifo", gate=False, demote=False)
+        kw.update(long_cap=workers, heavy_cap=workers, order="fifo", gate=False, demote=False, deadline_s=0)
         return SchedExecutor(workers, **kw).start()
     raise ValueError(f"unknown db-sched mode {mode!r}")
 
@@ -174,19 +197,20 @@ def describe(inner, iargs):
 
 class _Item:
     __slots__ = ("seq", "fn", "fut", "src", "db", "tool", "sql", "connect", "task_id", "task_start", "t_submit",
-                 "t_ready", "t_start", "cls", "pred_s", "explain_ms", "feats", "explain_err", "demoted", "classified")
+                 "t_ready", "t_start", "cls", "pred_s", "explain_ms", "feats", "explain_err", "demoted", "classified", "cons", "deadline", "shed")
 
 
 class SchedExecutor(cf.ThreadPoolExecutor):
     """See module docstring. Subclasses ThreadPoolExecutor because asyncio's set_default_executor requires it;
     the base pool runs both the admitted DuckDB calls (at most `workers`) and pass-through work."""
 
-    def __init__(self, workers=32, long_cap=2, heavy_cap=6, order="taskstart", starve_s=30.0, model_path=None,
-                 classify_workers=4, demote=True, log_path=None, passthrough_extra=8, gate=True, db_threads=0):
+    def __init__(self, workers=32, long_cap=3, heavy_cap=8, order="taskstart", starve_s=30.0, model_path=None,
+                 classify_workers=4, demote=True, log_path=None, passthrough_extra=8, gate=True, db_threads=0,
+                 deadline_s=60.0):
         super().__init__(max_workers=workers + passthrough_extra, thread_name_prefix="dbsched")
         self.workers, self.long_cap, self.heavy_cap = workers, long_cap, heavy_cap
         self.order, self.starve_s, self.demote, self.gate = order, starve_s, demote, gate
-        self.db_threads = db_threads
+        self.db_threads, self.deadline_s = db_threads, deadline_s
         self.explainer = Explainer(Model(model_path))
         self.long_s = self.explainer.model.long_s
         self._cls_pool = cf.ThreadPoolExecutor(classify_workers, thread_name_prefix="dbsched-explain")
@@ -200,7 +224,8 @@ class SchedExecutor(cf.ThreadPoolExecutor):
                            starve_s=starve_s, demote=demote, classify_workers=classify_workers,
                            model=self.explainer.model.path or "fallback:sum_ec",
                            short_s=self.explainer.model.short_s, long_s=self.long_s,
-                           long_decide_s=self.explainer.model.long_decide_s, db_threads=db_threads)
+                           long_decide_s=self.explainer.model.long_decide_s, db_threads=db_threads,
+                           deadline_s=deadline_s)
 
     # ---- submission -------------------------------------------------------------------------------------------
     def submit(self, fn, /, *args, **kwargs):
@@ -214,10 +239,12 @@ class SchedExecutor(cf.ThreadPoolExecutor):
         mod = sys.modules[inner.__module__]
         if self.db_threads and getattr(mod, "THREADS", None) != self.db_threads:
             set_db_threads(mod, self.db_threads)
-        it.connect = mod.connect
+        it.connect = wrap_connect(mod) if self.deadline_s else getattr(mod, "_dbsched_orig_connect", None) or mod.connect
+        it.cons, it.shed = [], False
         tk = ctx.get(TASK, None)
         it.task_id, it.task_start = (tk if tk else (None, None))
         it.t_submit = time.time()
+        it.deadline = it.t_submit + self.deadline_s if self.deadline_s else None
         it.t_start = it.t_ready = None
         it.cls, it.pred_s, it.explain_ms, it.feats, it.explain_err, it.demoted = "meta", None, 0.0, None, None, False
         it.classified = threading.Event()
@@ -282,7 +309,9 @@ class SchedExecutor(cf.ThreadPoolExecutor):
                     continue
                 aged = now - it.t_submit > self.starve_s
                 ok = n_run < self.workers
-                if ok and it.cls == "long":
+                if ok and it.deadline is not None and now >= it.deadline:
+                    it.shed = True  # past its deadline: start now and interrupt (the agent sees a timeout)
+                elif ok and it.cls == "long":
                     ok = n_long < self.long_cap and (aged or n_heavy < self.heavy_cap)
                 elif ok and it.cls == "medium":
                     ok = aged or n_heavy < self.heavy_cap
@@ -305,12 +334,14 @@ class SchedExecutor(cf.ThreadPoolExecutor):
     def _execute(self, it, snap):
         t0 = time.time()
         err, res = None, None
+        _CUR.item = it
         try:
             res = it.fn()
             it.fut.set_result(res)
         except BaseException as e:  # noqa: BLE001
             err = e
             it.fut.set_exception(e)
+        _CUR.item = None
         t1 = time.time()
         with self._lock:
             self._run.pop(it.seq, None)
@@ -318,10 +349,22 @@ class SchedExecutor(cf.ThreadPoolExecutor):
         self._dispatch()
 
     def _tick(self):
-        # Runtime demotion and ageing change admission without a completion; re-check periodically.
-        while not self._stop.wait(0.5):
+        # Runtime demotion, ageing and deadlines change admission without a completion; re-check periodically.
+        # Interrupts are repeated: DuckDB ignores an interrupt that arrives before the query starts.
+        while not self._stop.wait(0.25):
             if self._wait:
                 self._dispatch()
+            if self.deadline_s:
+                now = time.time()
+                with self._lock:
+                    late = [r for r in self._run.values() if r.deadline is not None and now >= r.deadline]
+                for r in late:
+                    r.shed = True
+                    for con in list(r.cons):
+                        try:
+                            con.interrupt()
+                        except Exception:  # noqa: BLE001  (already closed)
+                            pass
 
     # ---- logging ----------------------------------------------------------------------------------------------
     def _record(self, it, t0, t1, res, err, snap):
@@ -336,7 +379,7 @@ class SchedExecutor(cf.ThreadPoolExecutor):
             qerr = "exception:" + type(err).__name__
         row = dict(t_submit=round(it.t_submit, 4), task_id=it.task_id,
                    task_start=None if it.task_start is None else round(it.task_start, 4), db=os.path.basename(it.db),
-                   src=it.src, tool=it.tool, cls=it.cls, demoted=it.demoted,
+                   src=it.src, tool=it.tool, cls=it.cls, demoted=it.demoted, shed=it.shed,
                    pred_s=None if it.pred_s is None else round(it.pred_s, 4),
                    explain_ms=None if it.explain_ms is None else round(it.explain_ms, 2),
                    classify_s=round(it.t_ready - it.t_submit, 4), wait_s=round(t0 - it.t_submit, 4),
@@ -364,7 +407,8 @@ class SchedExecutor(cf.ThreadPoolExecutor):
             out["by_class"][c] = dict(n=len(rs), wait_p50=p("wait_s", 50), wait_p95=p("wait_s", 95),
                                       run_p50=p("run_s", 50), run_p95=p("run_s", 95),
                                       timeouts=sum(r["error"] == "timeout" for r in rs),
-                                      demoted=sum(r["demoted"] for r in rs))
+                                      demoted=sum(r["demoted"] for r in rs),
+                                      shed=sum(r.get("shed", False) for r in rs))
         ex = [r["explain_ms"] for r in rows if r["explain_ms"]]
         if ex:
             out["explain_ms_p50"], out["explain_ms_p99"] = (round(float(np.percentile(ex, q)), 2) for q in (50, 99))

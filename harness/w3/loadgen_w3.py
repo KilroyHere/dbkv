@@ -54,10 +54,11 @@ async def main():
     ap.add_argument("--max-tokens", type=int, default=1024)
     ap.add_argument("--db-workers", type=int, default=32)
     ap.add_argument("--db-sched", choices=["off", "explain", "observe"], default="off")
-    ap.add_argument("--db-sched-long-cap", type=int, default=2, help="max long (>= 2 s predicted) queries at once")
-    ap.add_argument("--db-sched-heavy-cap", type=int, default=6, help="max medium+long queries at once")
+    ap.add_argument("--db-sched-long-cap", type=int, default=3, help="max long (>= 2 s predicted) queries at once")
+    ap.add_argument("--db-sched-heavy-cap", type=int, default=8, help="max medium+long queries at once")
     ap.add_argument("--db-sched-order", choices=["taskstart", "fifo"], default="taskstart")
     ap.add_argument("--db-sched-starve-s", type=float, default=30.0)
+    ap.add_argument("--db-sched-deadline-s", type=float, default=60.0, help="interrupt at submit + this (0 = never)")
     ap.add_argument("--db-sched-model", default="", help="default harness/w3/dbsched_model.json")
     ap.add_argument("--db-sched-no-demote", action="store_true")
     ap.add_argument("--db-threads", type=int, default=0,
@@ -81,7 +82,7 @@ async def main():
     else:
         dbx = dbsched.make_executor(a.db_sched, workers=a.db_workers, long_cap=a.db_sched_long_cap,
                                     heavy_cap=a.db_sched_heavy_cap, order=a.db_sched_order,
-                                    starve_s=a.db_sched_starve_s, model_path=a.db_sched_model or None,
+                                    starve_s=a.db_sched_starve_s, deadline_s=a.db_sched_deadline_s, model_path=a.db_sched_model or None,
                                     demote=not a.db_sched_no_demote, log_path=os.path.join(a.out, "dbsched.jsonl"))
     asyncio.get_running_loop().set_default_executor(dbx)
     rw = load_agent(a.agent_dir)

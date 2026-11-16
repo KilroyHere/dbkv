@@ -267,7 +267,7 @@ def pct(v, q):
 async def run_arm(a, arm, k, trace, tools, dbsched):
     arm, _, th = arm.partition(":")  # e.g. "explain:16" = explain with DuckDB threads 16 (per instance)
     tools.THREADS = int(th) if th else 8
-    kw = dict(long_cap=a.long_cap, heavy_cap=a.heavy_cap, order=a.order, starve_s=a.starve_s,
+    kw = dict(long_cap=a.long_cap, heavy_cap=a.heavy_cap, order=a.order, starve_s=a.starve_s, deadline_s=a.deadline_s,
               model_path=a.model or None, log_path=os.path.join(a.out, f"dbsched_{k}_{arm}{'_t' + th if th else ''}.jsonl"))
     ex = dbsched.make_executor(arm, workers=a.db_workers, **({} if arm == "off" else kw))
     loop = asyncio.get_running_loop()
@@ -362,6 +362,31 @@ async def run_arm(a, arm, k, trace, tools, dbsched):
     return s
 
 
+def cmd_report(a):
+    """Per arm: task p50/p95, and execute_sql wall time by EXPLAIN class (classes for every arm come from the
+    explain arms' logs, joined on the SQL text, so the off arms get the same labels)."""
+    lab = {}
+    for f in glob.glob(os.path.join(a.dir, "dbsched_*.jsonl")):
+        for l in open(f):
+            r = json.loads(l)
+            if r.get("sql") and r["cls"] in ("short", "medium", "long", "error"):
+                lab[hashlib.sha1(r["sql"].encode()).hexdigest()[:12]] = r["cls"]
+    out = []
+    for s in json.load(open(os.path.join(a.dir, "summary.json"))):
+        th = s.get("threads", 8)
+        tag = f"{s['k']}_{s['arm']}" + (f"_t{th}" if th != 8 else "")
+        calls = [json.loads(l) for l in open(os.path.join(a.dir, f"calls_{tag}.jsonl"))]
+        row = {x: s.get(x) for x in ("arm", "threads", "n_measured", "cut", "task_p50", "task_p95", "task_mean",
+                                     "throughput_per_min", "sql_n", "sql_wall_p50", "sql_wall_mean", "sql_timeouts")}
+        for c in ("short", "medium", "long"):
+            w = [x["wall_s"] for x in calls
+                 if x["measured"] and x["tool"] == "execute_sql" and lab.get(x["sql_id"]) == c]
+            row[f"{c}_n"], row[f"{c}_wall_p50"], row[f"{c}_wall_p95"] = len(w), pct(w, 50), pct(w, 95)
+        out.append(row)
+        print(json.dumps(row))
+    json.dump(out, open(os.path.join(a.dir, "report.json"), "w"), indent=1)
+
+
 def cf_pool():
     import concurrent.futures as cf
     return cf.ThreadPoolExecutor(1)
@@ -417,12 +442,15 @@ def main():
     r.add_argument("--prewarm-s", type=float, default=0.0)
     r.add_argument("--gap-scale", type=float, default=1.0)
     r.add_argument("--db-workers", type=int, default=32)
-    r.add_argument("--long-cap", type=int, default=2)
-    r.add_argument("--heavy-cap", type=int, default=6)
+    r.add_argument("--long-cap", type=int, default=3)
+    r.add_argument("--heavy-cap", type=int, default=8)
     r.add_argument("--order", default="taskstart")
     r.add_argument("--starve-s", type=float, default=30.0)
+    r.add_argument("--deadline-s", type=float, default=60.0)
     r.add_argument("--model", default="")
     r.add_argument("--out", required=True)
+    rp = sp.add_parser("report")
+    rp.add_argument("--dir", required=True)
     a = ap.parse_args()
     if a.cmd == "extract":
         cmd_extract(a)
@@ -430,6 +458,8 @@ def main():
         cmd_calib(a)
     elif a.cmd == "fit":
         cmd_fit(a)
+    elif a.cmd == "report":
+        cmd_report(a)
     else:
         asyncio.run(cmd_run_async(a))
 
