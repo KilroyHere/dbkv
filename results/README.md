@@ -91,7 +91,7 @@ Every row lists its pre-registered prediction (PLAN §2j), the measured added ga
 | Phase 0: KV model, K | — | not yet | | | | |
 | Phase 0: W3 workload | — | 133/143 (template, tenant) pairs usable, 783 gold instances, SF100 gold p50 1.8 s | `w3_bank_summary.json`, `w3_streams_summary.json`, `w3_SHA256SUMS` | | 61362847 | Nov 15 |
 | Phase 0: smoke test | 0 of 20 tasks without SQL | **PASS**: 0/20 no-SQL; acc 3/20; task p50 12.7 s at c = 4; LLM 82% / DB 13%; KV pool 305,328 tokens; decode step 17.6 ms (batch 1) / 24 ms (batch 64) | `smoke32_summary.json` | | 61369427 | Nov 15 |
-| Phase 1: naive baseline | written before the first job | not yet | | | | |
+| Phase 1: naive baseline | P1-a..f (§2j-P1) | peak capacity ≈ 55/min; R\* = 40: p50 21.6 s, p95 150 s; P1-a, e met, b, c, d, f not met; re-render 22–29% of uncached prefill | `p1_baseline.md`, `p1_sweep.json`, `p1_repeats.json` | `fig_p1_load_curve.png` | 61374027/28, 61374963/64, 61395033–35 | Nov 15–16 |
 | A(a) gateway | ≥ 1.5× throughput at overload | not yet | | | | |
 | A(b) suffix decoding | ≥ 1.5× lower p50 at light load | not yet | | | | |
 | A(c) W8A8 | ≥ 1.3× higher ceiling, accuracy ±2 points | not yet | | | | |

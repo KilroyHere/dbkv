@@ -25,8 +25,8 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 |---|---|
 | **Next phase (Nov 15, §2j)** | **Active.** Qwen3-32B (dense, BF16, non-thinking), one vLLM instance with TP = 4 on one full GPU node (4 × A100-40GB, `gpu&hbm40g`, regular QOS, 1 node-h per hour). Workload W3: our DuckDB agent on TPC-H SF10/SF100 and TPC-DS SF10. Options built in order A → C → B → E → D, no gates; predictions in §2j are the pre-registration. Doing Phases 0–2 now; Phase 3 later |
 | Phase 0: setup (§2j) | **Done (Nov 15).** (a) Qwen3-32B downloaded (65.52 GB, snapshot `9216db57`). (b) `DBKV_MODEL=Qwen/Qwen3-32B`; 8B scripts pin `DBKV_MODEL_8B`. (c) `slurm/node_lib.sh`, `node_serve.sbatch`, `node_smoke.sbatch`. (d) `kv_limit.py --tp 4` predicted 275k–308k tokens; **vLLM reports 305,328** (18.64 GiB KV per GPU); K = 305,328 ÷ per-task KV (≈105–139 for 2.2–2.9k; the 32B per-task KV is measured in Phase 1). (e) W3 built, tag `workload-w3-v1` (133/143 pairs, 783 gold instances). (f) agent ported, tag **`agent-32b-v1`**. (g) **Smoke PASS** (debug-QOS job 61369427, 5 min, 0.089 node-h): 0/20 no-SQL, tool calls parsed in non-thinking mode, 6.2 turns/task, task p50 12.7 s (c = 4), LLM 82% / DB 13% of task time, accuracy 3/20 (wrong answers checked: genuine SQL errors). Decode step 17.6 ms at batch 1, 24 ms at batch 64; burst 64 × 256 tokens: 861 out tok/s. Server start 161 s. Logging-off control moved to the Phase 1 sweep job. `results/smoke32_summary.json` |
-| Phase 1: baseline (§2j) | **Pre-registered (§2j-P1)**; sweep job next, then 3 repeat jobs. Aryan (Nov 15): the 3 repeat jobs run **in parallel on 3 nodes** (each job holds all load levels, so comparisons stay within a job) |
-| Phase 2: options A, C, B, E, D (§2j) | Not started. A(a) gateway → A(b) suffix → A(c) W8A8 → A(d) FP8 KV, then C, B, E, D |
+| Phase 1: baseline (§2j) | **Done (Nov 16).** Peak capacity ≈ 55 tasks/min (stock collapses to 36/min at 180/min). GPU compute, not KV, limits below ~100/min. Aryan set R\* = 40, R_o = 60 (no rate met the pre-registered ceiling rule, because of load-independent long tasks: SF100 SQL timeouts and runaway generation). At 40/min: p50 21.6 s, p95 150 s, DB 24% of task time. Re-render of the previous reply = 22–29% of uncached prefill. P1-a, P1-e met; P1-b, c, d, f not met. Tag `system-32b-base`. `results/p1_baseline.md` |
+| Phase 2: options A, C, B, E, D (§2j) | Next: `iris` check and the teammate-allocation question, then the A(a) pre-registration. A(a) gateway → A(b) suffix → A(c) W8A8 → A(d) FP8 KV, then C, B, E, D |
 | GPU budget (`iris`, Nov 15) | m4999_g: **14.2 of 45 node-h used, 30.8 left**. CPU: 0.5 of 10. Phases 1–2 are estimated at ~13–24 node-h (§6) |
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
@@ -954,6 +954,22 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 - *Time split at 30–40/min: LLM ~71%, DB query ~26%, DB queue ~2% (P1-d is judged at R\*).*
 
 *Decision (Aryan, Mon Nov 16 2026, after the sweep; a deviation from the pre-registered ceiling rule, which no rate met):* **R\* = 40/min, R_o = 60/min.** R\* is the highest swept rate where vLLM has 0 waiting requests, p50 stays near light-load p50 (20.6 vs 17.9 s at 20/min), and throughput ≥ 0.95 × the *realized* arrival rate (40/min: 34.4 vs 36.0, 0.955). R_o = 1.5 × R\*. Repeat jobs as pre-registered otherwise: `closed:1:30 closed:4:60 open:40 open:60`, seeds 0 / 1 / 2, in parallel. P1-c and P1-d are judged at these R\* / R_o.
+
+*Observed, repeats (jobs 61395033 / 61395034 / 61395035, seeds 0 / 1 / 2, run in parallel; `results/p1_repeats.json`, summary `results/p1_baseline.md`, figure `results/fig_p1_load_curve.png`):*
+- *c = 1: p50 11.6 [11.1–12.1] s. c = 4: p50 13.3 [12.4–14.5] s.*
+- *40/min: p50 21.6 s, p95 150 [79–275] s, throughput 34.7/min.*
+- *60/min: p50 41.5 s, p95 206 [167–242] s, throughput 47.6/min.*
+- *At 40/min: KV peak 25%, 0 waiting, 0 preemptions. Prefix hit 93–95% at every level. Re-render of the previous reply = 22–29% of uncached prompt tokens; evicted proper ≈ 0 up to 60/min.*
+
+*Verdicts:*
+- ***P1-a MET*** *(11.6 s; ratio 1.147).*
+- ***P1-b NOT MET.***
+- ***P1-c NOT MET*** *(60/min is still below capacity: throughput rose 1.37×, p95 1.37×, hit unchanged, "new" is the largest share, 0 preemptions; the collapse appears only at 140–180/min in the sweep).*
+- ***P1-d NOT MET*** *(LLM 74%, DB 24%; the DB-queue part, 2.3%, is met).*
+- ***P1-e MET.***
+- ***P1-f NOT MET*** *(2.05k [1.06–2.55k] tokens, K 175 [119–288]; the estimator is unreliable because max in-flight counts tasks waiting on the DB; K for A(a) will be pre-registered in its own sub-entry).*
+
+*Baseline tagged `system-32b-base`. GPU: Phase 0–1 total 3.28 node-h.*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
