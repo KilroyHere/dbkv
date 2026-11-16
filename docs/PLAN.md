@@ -935,6 +935,24 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 *Amendment 2 (Sun Nov 15, ~17:05 PT; after the 140/min (job 61374028) and 60/min (61374027) cells, so **not** blind; grid only, the ceiling rule and every prediction are unchanged):* 140/min gave 44.4/min throughput (470 unfinished) and 60/min gave 45.4/min (22 unfinished). Both are above the ceiling, so no swept rate can satisfy the rule. Part C (`open:240` + logging control, 61374029, not started) was cancelled and replaced by C2 = `open:40 restart:off burst restart:on burst` (61374963) and D2 = `open:20 open:30` (61374964). The 100 and 180 cells already running finish as overload points. P1-b (R\* = 140 or 180) is already failed; that stays recorded.
 - *Observed, instrumentation:* `step_ms` from vLLM's iteration details is ~33 ms at the 140/min cell while vLLM's own throughput log implies ~100 ms per step (~800 output tok/s at 60–80 running). With async scheduling it times scheduling + launch, not GPU execution. So the prefill share of P1-b is judged from token counts and the steps' wall-clock spacing (the `t` gaps between step-log lines), not from `step_ms`; `step_ms` is reported as is.
 
+*Observed, sweep (jobs 61374027 / 61374028 / 61374963 / 61374964; `results/p1_sweep.json`):*
+
+| rate /min | throughput | p50 s | p95 s | unfinished | vLLM running / waiting | KV peak | evicted proper | re-render |
+|---|---|---|---|---|---|---|---|---|
+| 20 | 16.0 | 17.9 | 152 | 3 | 4 / 0 | 13% | 0% | 27% |
+| 30 | 26.6 | 20.4 | 86 | 1 | 7 / 0 | 27% | 0% | 24% |
+| 40 | 34.4 | 20.6 | 82 | 3 | 10 / 0 | 22% | 0% | 24% |
+| 60 | 45.4 | 32.7 | 256 | 22 | 14 / 0 | 31% | 0% | 28% |
+| 100 | 54.8 | 127 | 313 | 132 | 42 / 0 | 85% | 12% | 18% |
+| 140 | 44.4 | 246 | 406 | 470 | 84 / 22 | 100% | 32% | 9% |
+| 180 | 36.2 | 286 | 434 | 708 | 146 / 155 | 100% | 35% | 6% |
+
+- ***Ceiling rule: no swept rate satisfies it.*** *Below 40/min the GPU is lightly loaded (≤ 10 running, 0 waiting), yet 1–3 tasks per cell stay unfinished. Cause: load-independent long tasks, (i) repeated 60 s SQL timeouts on SF100 (h18: 5–6 timeouts, 300–380 s of DB time in one task) and (ii) runaway generation (t04: 15 turns, 7–10k output tokens, one ended without SQL).*
+- ***P1-b:*** *R\* = 140/180 NOT MET (peak capacity ≈ 55/min at 100/min arrivals).*
+- ***P1-e:*** *MET: logging on 861.7 vs off 862.0 out tok/s, same node (C2; the planned first burst was dropped with part C, so this is an off–on pair; part A's on-burst on another node: 863.0).*
+- *Stock collapse past capacity: throughput 54.8 → 36.2/min from 100 to 180/min arrivals.*
+- *Time split at 30–40/min: LLM ~71%, DB query ~26%, DB queue ~2% (P1-d is judged at R\*).*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
