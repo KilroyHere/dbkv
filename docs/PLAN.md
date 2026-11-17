@@ -1143,6 +1143,27 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 
 **Adoption** (B only; TL8 is the comparison, not a candidate): B joins iff its correct tasks/min at 140 is ≥ 5% above base, and accuracy at 40 does not fall by more than 2 points. A second run (seed 1) follows the borderline rule above.
 
+*Observed, B seed 0 (job 61476626, 1.08 node-h; single run):*
+
+| cell | correct / min | window accuracy | finished / measured | accuracy of finished | forced tasks | p50 / p95 s | throughput |
+|---|---|---|---|---|---|---|---|
+| base 40 | 9.6 | 27.2% | 178 / 180 | 27.5% | 0 | 17.0 / 68 | 34.6 |
+| TL8 40 | 9.8 | 28.3% | 178 / 180 | 28.7% | 59 | 7.5 / 52 | 34.6 |
+| B 40 | 10.0 | 29.4% | 177 / 180 | 29.9% | 1 | 19.9 / 103 | 34.6 |
+| base 140 | **18.0** | 14.9% | 282 / 686 | 36.2% | 0 | 213 / 374 | 53.0 |
+| TL8 140 | 16.6 | 14.7% | 292 / 686 | 34.6% | 100 | 209 / 359 | 51.0 |
+| B 140 | **17.0** | 14.3% | 404 / 686 | 24.3% | 230 | 195 / 287 | 64.8 |
+
+- *B ÷ TL8 at 140 = **1.02** (B-1 band MET; the plan's ≥ 1.15 NOT MET).*
+- *B vs base at 140: **−5.6%** correct/min. B finishes 43% more tasks (throughput +22%, p95 −23%), but the extra finishes are forced, mostly wrong answers.*
+- *B-2: accuracy at 40 +2.2 points (no harm); one task forced at 40 (predicted none).*
+- *B-3: 230 forced at 140, about half of the admitted tasks (predicted 5–20%): NOT MET.*
+- *Stock + suffix alone holds 53/min at 140 (stock without suffix: 37–41/min in A(a)).*
+- ***Confound found:** suffix decoding's global suffix tree is not cleared between cells on one server (Test S). In this job TL8's cells ran third and fourth on the base server, with a tree warmed by ~900 tasks (TL8 p50 7.5 s vs base 17.0 s at 40). So TL8's latency numbers are biased in its favour. The B vs base comparison is fair: both ran first on a fresh server. In job 61476562 (C) every arm gets a fresh server and the same cell order, so it is fair.*
+- ***Borderline** by the one-run rule (accuracy moved > 1.5 points at 40; correct/min worse by 2–10% at 140), so seed 1 is run.*
+
+*Amendment for seed 1 (before its data): TL8 gets its own fresh server: `server:fcfs+suffix open:40 open:140 server:fcfs+suffix gwx:40:tl8 gwx:140:tl8 server:prio+suffix gwx:40:gp gwx:140:gp`. Adoption is judged on seeds 0 + 1 (mean correct/min at 140 vs base ≥ +5%; accuracy at 40 ≥ −2 points).*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
