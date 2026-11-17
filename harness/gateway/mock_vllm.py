@@ -8,12 +8,15 @@ final reply with a ```sql``` block (or at once when tool_choice == "none"). Each
 /metrics: Prometheus text with num_requests_running/waiting, kv usage and prefix-cache counters.
 /mock/log: JSON list of {t, priority, task_id, db, n_msgs, tool_choice, last_role, last_content} for each
 request received. /health.
+Option E stand-ins (harness/vllm_taskevict): POST /task_end {task_id} (the plugin's listener) and POST
+/v1/completions with vllm_xargs {"dbkv_task_end": id} (the in-band signal) both record the id;
+GET /mock/task_ends lists {t, task_id, via}.
 """
 import argparse, asyncio, json, time
 
 from aiohttp import web
 
-STATE = dict(running=0, queries=0, hits=0, log=[])
+STATE = dict(running=0, queries=0, hits=0, log=[], task_ends=[])
 
 
 async def chat(req):
@@ -22,7 +25,8 @@ async def chat(req):
     STATE["log"].append(dict(t=time.time(), priority=body.get("priority"), task_id=req.headers.get("x-task-id"),
                              db=req.headers.get("x-db"), n_msgs=len(body["messages"]),
                              tool_choice=body.get("tool_choice"), last_role=body["messages"][-1].get("role"),
-                             last_content=(body["messages"][-1].get("content") or "")[:300]))
+                             last_content=(body["messages"][-1].get("content") or "")[:300],
+                             xargs=body.get("vllm_xargs")))
     if a.fcfs and "priority" in body:
         return web.json_response({"error": "priority set but scheduling policy is fcfs"}, status=400)
     STATE["running"] += 1
@@ -44,6 +48,25 @@ async def chat(req):
                                         "prompt_tokens_details": {"cached_tokens": 400}},
                               "metrics": {"queue_time_ms": 1.0, "time_to_first_token_ms": 5.0,
                                           "generation_time_ms": a.delay * 1000}})
+
+
+async def task_end(req):
+    body = await req.json()
+    STATE["task_ends"].append(dict(t=time.time(), task_id=body["task_id"], via="http"))
+    return web.json_response({"ok": True, "n": 1})
+
+
+async def completions(req):
+    body = await req.json()
+    end = (body.get("vllm_xargs") or {}).get("dbkv_task_end")
+    if end is not None:
+        STATE["task_ends"].append(dict(t=time.time(), task_id=end, via="inband", model=body.get("model")))
+    return web.json_response({"id": "x", "choices": [{"index": 0, "text": ".", "finish_reason": "length"}],
+                              "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+
+
+async def task_ends(req):
+    return web.json_response(STATE["task_ends"])
 
 
 async def metrics(req):
@@ -71,6 +94,9 @@ def main():
     app.router.add_post("/v1/chat/completions", chat)
     app.router.add_get("/metrics", metrics)
     app.router.add_get("/mock/log", log)
+    app.router.add_post("/task_end", task_end)
+    app.router.add_post("/v1/completions", completions)
+    app.router.add_get("/mock/task_ends", task_ends)
     app.router.add_get("/health", lambda r: web.Response(text="ok"))
     web.run_app(app, host="127.0.0.1", port=a.port, access_log=None, print=None)
 

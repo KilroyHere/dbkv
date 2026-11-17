@@ -12,6 +12,14 @@ A task becomes *active* on its first request and stops being active on POST /gw/
 Policies (all off by default = a plain proxy, for self-check S2):
   --admission K   at most K active tasks; a new task's first request waits FIFO by x-task-start.
   --priority      inject "priority": int(task_start_ms - t0_ms) into the body (vLLM --scheduling-policy priority).
+  --taskevict M   option E (PLAN 2j; engine side harness/vllm_taskevict, vLLM run with DBKV_TASKEVICT=1):
+                  off (default) | http | inband. Not off: add "vllm_xargs": {"dbkv_task": "<id>@<start>",
+                  "dbkv_task_start": start} to every request body (id@start: the loadgen reuses ids in every
+                  cell). On POST /gw/task_end, tell the task's backend engine that the task ended:
+                  http   -> POST {"task_id"} to that backend's --taskevict-endpoints URL (the plugin's listener);
+                  inband -> a 1-token /v1/completions request to the backend carrying vllm_xargs {"dbkv_task_end"}.
+                  Sent in the background (never delays the task_end reply); logged as ev="taskevict_end".
+  --taskevict-endpoints URL[,URL]  one per backend, same order (default: backend host, port 8899, /task_end).
   --route         per-task sticky backend choice on the first request:
                   single (first backend), round_robin, least_loaded (fewest active tasks),
                   affinity (x-db -> home replica from a balanced greedy map over the 11 BIRD dev DBs; spill to
@@ -83,13 +91,13 @@ def pct(xs, p):
 
 class Task:
     __slots__ = ("tid", "start", "db", "backend", "active", "inflight", "last", "n_req", "queue_ms",
-                 "admitted_at", "ended", "out_tok", "value", "forced")
+                 "admitted_at", "ended", "out_tok", "value", "forced", "model")
 
     def __init__(self, tid, start, db):
         self.tid, self.start, self.db = tid, start, db
         self.backend = None; self.active = False; self.inflight = 0; self.last = time.monotonic()
         self.n_req = 0; self.queue_ms = 0.0; self.admitted_at = None; self.ended = False
-        self.out_tok = 0; self.value = None; self.forced = None  # goodput: tokens so far, last value, force reason
+        self.out_tok = 0; self.value = None; self.forced = None; self.model = None  # goodput: tokens so far, last value, force reason
 
 
 class Gateway:
@@ -107,11 +115,14 @@ class Gateway:
         self.load = [0] * self.n  # active tasks bound to each backend
         self.home, self.home_load = affinity_map(self.n)
         self.stats = dict(requests=0, errors=0, admitted=0, queued=0, task_end=0, idle_releases=0,
-                          spills=0, routed=[0] * self.n, forced_goodput=0, forced_turn_limit=0, forced_requests=0)
+                          spills=0, routed=[0] * self.n, forced_goodput=0, forced_turn_limit=0, forced_requests=0,
+                          taskevict_sent=0, taskevict_errors=0)
         self.table = GP.Table.load(a.goodput, a.prefill_weight, a.db_weight) if a.goodput else None
         if a.force_final is not None and self.table is None:
             raise SystemExit("--force-final needs --goodput TABLE")
         self.inspect = bool(self.table or a.turn_limit)  # parse each body for the task state
+        self.te_endpoints = taskevict_endpoints(a, self.backends) if a.taskevict != "off" else []
+        self.te_pending = set()
         self.overheads = []  # last 100k overhead_ms values
         self.sessions = []
         self.log = open(a.log, "a", buffering=1 << 16) if a.log else None
@@ -135,14 +146,17 @@ class Gateway:
                        force_final=self.a.force_final, force_frac=self.a.force_frac,
                        force_min_turn=self.a.force_min_turn, turn_limit=self.a.turn_limit or None,
                        work_weights=[self.table.w, self.table.wdb] if self.table else None,
-                       table_meta=(self.table.d.get("meta") or {}).get("args") if self.table else None))
+                       table_meta=(self.table.d.get("meta") or {}).get("args") if self.table else None,
+                       taskevict=self.a.taskevict, taskevict_endpoints=self.te_endpoints))
         print(f"gateway up: backends={self.backends} admission={self.a.admission} priority={self.a.priority} "
               f"route={self.a.route} cap={self.a.cap} goodput={self.a.goodput or None} "
-              f"force_final={self.a.force_final} turn_limit={self.a.turn_limit or None}" +
+              f"force_final={self.a.force_final} turn_limit={self.a.turn_limit or None} taskevict={self.a.taskevict}" +
               (f" affinity={self.home} questions/replica={self.home_load}" if self.a.route == "affinity" else ""),
               flush=True)
 
     async def cleanup(self, app):
+        if self.te_pending:
+            await asyncio.wait(list(self.te_pending), timeout=5)
         for t in self.bg:
             t.cancel()
         for s in self.sessions:
@@ -314,11 +328,17 @@ class Gateway:
                     gp["forced"] = why
                     if self.table:  # one short final turn left: serve it first so the task frees its slot
                         prio = 0
-            if prio is not None or (gp is not None and gp.get("forced")):
+            te = self.a.taskevict != "off"
+            if prio is not None or te or (gp is not None and gp.get("forced")):
                 if body is None:
                     body = json.loads(raw)
                 if prio is not None:
                     body["priority"] = prio
+                if te:  # option E: tag the request with its task for the engine's eviction tiers
+                    xa = body.get("vllm_xargs") or {}
+                    xa.update(dbkv_task=engine_task_id(t), dbkv_task_start=round(t.start, 6))
+                    body["vllm_xargs"] = xa
+                    t.model = body.get("model", t.model)
                 raw = json.dumps(body).encode()
             u0 = time.monotonic()
             try:
@@ -373,9 +393,38 @@ class Gateway:
         self.emit(dict(ev="task_end", ts=time.time(), task_id=tid, db=t.db, backend=t.backend,
                        queue_ms=round(t.queue_ms, 3), n_req=t.n_req, was_active=was_active))
         del self.tasks[tid]
+        if self.a.taskevict != "off" and t.backend is not None:
+            job = asyncio.create_task(self.taskevict_end(t))
+            self.te_pending.add(job)
+            job.add_done_callback(self.te_pending.discard)
         return web.json_response({"task_id": tid, "known": True, "backend": t.backend,
                                   "backend_url": self.backends[t.backend] if t.backend is not None else None,
                                   "queue_ms": round(t.queue_ms, 3), "n_req": t.n_req, "was_active": was_active})
+
+    async def taskevict_end(self, t):
+        """Option E: tell the engine of the task's backend that the task ended (its KV blocks go first)."""
+        t0 = time.monotonic()
+        s = self.sessions[t.backend]
+        try:
+            if self.a.taskevict == "http":
+                url = self.te_endpoints[t.backend]
+                async with s.post(url, json={"task_id": engine_task_id(t)},
+                                  timeout=aiohttp.ClientTimeout(total=10)) as r:
+                    await r.read()
+                    status = r.status
+            else:  # inband: a 1-token request whose only job is to carry the end marker into the scheduler
+                url = self.backends[t.backend] + "/v1/completions"
+                body = {"model": t.model, "prompt": ".", "max_tokens": 1,
+                        "vllm_xargs": {"dbkv_task_end": engine_task_id(t)}}
+                async with s.post(url, json=body, timeout=aiohttp.ClientTimeout(total=60)) as r:
+                    await r.read()
+                    status = r.status
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            status = f"{type(e).__name__}: {e}"
+        ok = status == 200
+        self.stats["taskevict_sent" if ok else "taskevict_errors"] += 1
+        self.emit(dict(ev="taskevict_end", ts=time.time(), task_id=t.tid, backend=t.backend, mode=self.a.taskevict,
+                       status=status, ms=round((time.monotonic() - t0) * 1000.0, 3)))
 
     def snapshot(self):
         ov = self.overheads
@@ -391,6 +440,22 @@ class Gateway:
         return web.Response(text="ok")
 
 
+def engine_task_id(t):
+    """Id sent to the engine: the loadgen restarts task ids (t00000, ...) every cell, so add the arrival time."""
+    return f"{t.tid}@{t.start:.6f}"
+
+
+def taskevict_endpoints(a, backends):
+    """One task_end URL per backend: --taskevict-endpoints, else the backend's host on port 8899."""
+    if a.taskevict_endpoints:
+        eps = [e.strip() for e in a.taskevict_endpoints.split(",") if e.strip()]
+        if len(eps) != len(backends):
+            raise SystemExit(f"--taskevict-endpoints: {len(eps)} URLs for {len(backends)} backends")
+        return eps
+    from urllib.parse import urlsplit
+    return [f"{urlsplit(b).scheme}://{urlsplit(b).hostname}:8899/task_end" for b in backends]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
@@ -398,6 +463,9 @@ def main():
     ap.add_argument("--backends", required=True, help="comma-separated vLLM base URLs")
     ap.add_argument("--admission", type=int, default=0, help="max active tasks (0 = off)")
     ap.add_argument("--priority", action="store_true")
+    ap.add_argument("--taskevict", default="off", choices=["off", "http", "inband"],
+                    help="option E: tag requests with the task id and signal task end to the engine")
+    ap.add_argument("--taskevict-endpoints", default="", help="task_end URL per backend (http mode)")
     ap.add_argument("--route", default="single", choices=["single", "round_robin", "least_loaded", "affinity"])
     ap.add_argument("--cap", type=float, default=1.25)
     ap.add_argument("--idle-timeout", type=float, default=120.0)
