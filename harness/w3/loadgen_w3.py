@@ -11,6 +11,10 @@ Each task gets headers x-task-id, x-task-start (arrival epoch), x-db (tenant); w
 when the agent's last LLM reply arrives, so grading never holds an admission slot.
 DB tool calls run in a fixed thread pool of --db-workers threads (default 32) so DB queueing is the same on every
 node; each task records db_s (query time), db_queue_s (pool wait + connect) and llm_s (chat time).
+--db-sched (option D, PLAN 2j; harness/w3/dbsched.py): off (default) = that plain thread pool, unchanged;
+explain = EXPLAIN size classes, short first with backfilling, caps on concurrent long / medium+long queries,
+task-start order within a class (each task's x-task-start is passed to the scheduler through a contextvar);
+observe = FIFO like off, plus the per-call class log. explain/observe write dbsched.jsonl and dbsched_summary.json.
 Outputs in --out: tasks.jsonl, turns.jsonl, arrivals.jsonl, metrics_<i>.jsonl (1 s), config.json, summary.json.
 """
 import argparse, asyncio, concurrent.futures, importlib.util, json, os, sys, time
@@ -20,6 +24,7 @@ import aiohttp
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "gateway"))
 import loadgen as L  # noqa: E402  (schedule, TaskHTTP, NoSem, sampler)
+import dbsched  # noqa: E402  (option D: DuckDB query scheduler as the default executor)
 
 
 def load_agent(agent_dir):
@@ -48,6 +53,16 @@ async def main():
     ap.add_argument("--max-turns", type=int, default=15)
     ap.add_argument("--max-tokens", type=int, default=1024)
     ap.add_argument("--db-workers", type=int, default=32)
+    ap.add_argument("--db-sched", choices=["off", "explain", "observe"], default="off")
+    ap.add_argument("--db-sched-long-cap", type=int, default=3, help="max long (>= 2 s predicted) queries at once")
+    ap.add_argument("--db-sched-heavy-cap", type=int, default=8, help="max medium+long queries at once")
+    ap.add_argument("--db-sched-order", choices=["taskstart", "fifo"], default="taskstart")
+    ap.add_argument("--db-sched-starve-s", type=float, default=30.0)
+    ap.add_argument("--db-sched-deadline-s", type=float, default=60.0, help="interrupt at submit + this (0 = never)")
+    ap.add_argument("--db-sched-model", default="", help="default harness/w3/dbsched_model.json")
+    ap.add_argument("--db-sched-no-demote", action="store_true")
+    ap.add_argument("--db-threads", type=int, default=0,
+                    help="DuckDB threads per database instance (all modes); 0 = the agent's own (8)")
     ap.add_argument("--metrics-urls", default="")
     ap.add_argument("--label", default="")
     ap.add_argument("--dry-run", action="store_true")
@@ -62,8 +77,17 @@ async def main():
     if a.dry_run:
         print(json.dumps(dict(n=len(offs), first=[round(x, 3) for x in offs[:5]], qids=[t["qid"] for t in stream[:5]])))
         return
-    asyncio.get_running_loop().set_default_executor(concurrent.futures.ThreadPoolExecutor(a.db_workers))
+    if a.db_sched == "off":
+        dbx = concurrent.futures.ThreadPoolExecutor(a.db_workers)  # unchanged Phase 1 behaviour
+    else:
+        dbx = dbsched.make_executor(a.db_sched, workers=a.db_workers, long_cap=a.db_sched_long_cap,
+                                    heavy_cap=a.db_sched_heavy_cap, order=a.db_sched_order,
+                                    starve_s=a.db_sched_starve_s, deadline_s=a.db_sched_deadline_s, model_path=a.db_sched_model or None,
+                                    demote=not a.db_sched_no_demote, log_path=os.path.join(a.out, "dbsched.jsonl"))
+    asyncio.get_running_loop().set_default_executor(dbx)
     rw = load_agent(a.agent_dir)
+    if a.db_threads:
+        dbsched.set_db_threads(rw.tools, a.db_threads)
     ns = argparse.Namespace(url=a.url.rstrip("/"), model=a.model, concurrency=0, max_turns=a.max_turns,
                             max_tokens=a.max_tokens, brief="none", brief_text="", brief_name="none", brief_by_bench={})
     for kv in filter(None, a.brief_map.split(",")):
@@ -71,7 +95,8 @@ async def main():
         ns.brief_by_bench[b] = open(f).read().strip()
     if ns.brief_by_bench:
         ns.brief_name = "map:" + ",".join(sorted(ns.brief_by_bench))
-    cfg = dict(vars(a), agent_file=os.path.abspath(rw.__file__), n_arrivals=len(offs), brief_name=ns.brief_name)
+    cfg = dict(vars(a), agent_file=os.path.abspath(rw.__file__), n_arrivals=len(offs), brief_name=ns.brief_name,
+               db_sched_config=getattr(dbx, "config", None))
     with open(os.path.join(a.out, "arrivals.jsonl"), "w") as f:
         for k, o in enumerate(offs):
             t = stream[k]
@@ -93,6 +118,7 @@ async def main():
         await asyncio.sleep(max(0.0, t0_mono + off - time.monotonic()))
         arr_mono = time.monotonic()
         arr_epoch = t0_epoch + (arr_mono - t0_mono)
+        dbsched.TASK.set((tid, arr_epoch))  # read only by --db-sched explain/observe (this task's context only)
         end_info = {}
 
         async def send_end():
@@ -159,6 +185,8 @@ async def main():
         await samp
     await ctl.close()
     turns_f.close(); tasks_f.close()
+    if hasattr(dbx, "summary"):
+        json.dump(dbx.summary(), open(os.path.join(a.out, "dbsched_summary.json"), "w"), indent=1)
     import summarize
     s = summarize.summarize_cell(a.out)
     json.dump(s, open(os.path.join(a.out, "summary.json"), "w"), indent=1)
