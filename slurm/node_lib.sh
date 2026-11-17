@@ -35,6 +35,7 @@ node_check_gpus() {  # abort unless this node has exactly NODE_TP A100-SXM4-40GB
 }
 
 node_start_vllm() {  # $1 = port, $2 = server log. Flags = the 2j base set + NODE_VLLM_EXTRA.
+  local i
   local port=$1 log=$2
   local model=${NODE_MODEL:-$DBKV_MODEL}
   echo "$(date -Is) vllm serve $model steplog=$NODE_STEPLOG TP=$NODE_TP util=$NODE_UTIL maxlen=$NODE_MAXLEN extra=[${NODE_VLLM_EXTRA:-}]"
@@ -68,6 +69,7 @@ node_kv_pool() {  # $1 = server log -> prints the KV pool in tokens (vLLM's own 
 }
 
 node_wait_idle() {  # $1 = base URL; wait (<= 180 s) until no running/waiting requests
+  local i
   local u=$1 n
   for i in $(seq 1 90); do
     n=$(curl -s "$u/metrics" | awk '/^vllm:num_requests_(running|waiting)/ {s += $NF} END {print s+0}')
@@ -78,6 +80,7 @@ node_wait_idle() {  # $1 = base URL; wait (<= 180 s) until no running/waiting re
 }
 
 node_stop_vllm() {
+  local i
   [[ -n $NODE_SERVER_PID ]] || return 0
   kill -- -"$NODE_SERVER_PID" 2>/dev/null
   for i in $(seq 1 60); do kill -0 "$NODE_SERVER_PID" 2>/dev/null || break; sleep 1; done

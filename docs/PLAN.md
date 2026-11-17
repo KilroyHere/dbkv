@@ -971,6 +971,49 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 
 *Baseline tagged `system-32b-base`. GPU: Phase 0–1 total 3.28 node-h.*
 
+#### 2j-A. Option A steps A(a), A(b), A(d): design and predictions (pre-registered Mon Nov 16 2026, before any of their jobs)
+
+*Do not edit; add observations below. Seen before writing: all of Phase 1 (§2j-P1, `results/p1_baseline.md`). Aryan (Nov 16): A(a) is measured at 40, 60 and 140/min; Phase 2 runs on Aryan's allocation, stop and ask at 18 node-h of Phase 2; A(c) (W8A8) is skipped for now (no official W8A8 checkpoint exists); steps may be run speculatively stacked (A(b) on top of A(a) before A(a)'s verdict; re-run if the base changes).*
+
+**Common to every step:**
+- **Script:** `slurm/node_p1.sbatch` with `server:CFG` arms. The harness is snapshotted at job start.
+- **Arms:** same job; the base and the option arm each get a fresh vLLM start, so the prefix cache is reset.
+- **Repeats:** 3 jobs, seeds 0 / 1 / 2, in parallel. The arm order alternates (seed 0 and seed 2: base first; seed 1: option first).
+- **Cells:** open-loop cells as in Phase 1 (60 / 300 / 180 s). The gateway's idle release is 600 s.
+- **K:** "both" = gateway admission K + task-start priority on a `--scheduling-policy priority` server.
+  - K = floor(KV pool / 2,260), where 2,260 tokens is the mean peak *unique* context per task at 40/min in Phase 1: peak context minus the cached shared brief prefix; TPC-DS 3,019, TPC-H 1,552.
+  - So K = 135 on the BF16 pool (305,328) (`gw:RATE:auto`).
+- **Adoption rule (decides the "best system so far"):** an option joins iff, at one or more of its levels, the mean throughput or p95 improves by ≥ 5% over the base arm, and no level gets worse by > 5% (throughput or p95 mean), and accuracy does not fall by more than 2 points at any level. Otherwise it stays off and is recorded as a negative result with its measured cause.
+
+**A(a): gateway admission + task-start priority vs stock** (jobs `p2_Aa_s{0,1,2}`):
+- **Cells:** `server:fcfs open:40 open:60 open:140` vs `server:prio gw:40:auto gw:60:auto gw:140:auto`. About 1.1 node-h per job, `--time 1:20`.
+- **Plan prediction:** ≥ 1.5× throughput at overload vs stock vLLM, judged at **140/min**.
+- **My predictions, written now:**
+  - **A-a1:** at 140, both / stock throughput = **1.15–1.35** (stock ~44/min, both near the ~55/min peak), so the plan's ≥ 1.5× is **more likely NOT met**.
+  - **A-a2:** at 140, "evicted proper" share ≤ ½ of stock's, and preemptions = 0 with admission.
+  - **A-a3:** at 40 and 60, admission never binds (in flight < 135) and vLLM has no waiting requests. So throughput and p95 are within ±10% of stock: priority has nothing to reorder.
+  - **A-a4:** accuracy within ±2 points at each level; gateway overhead p50 < 1 ms.
+
+**A(b): suffix decoding on top of A(a)** (jobs `p2_Ab_s{0,1,2}`):
+- **Cells:** `server:prio closed:1:30 gw:40:auto gw:60:auto` vs `server:prio+suffix` with the same cells. About 1.0 node-h per job, `--time 1:15`.
+- **Suffix flag:** `--speculative-config {"method":"suffix"}` with vLLM 0.33 defaults (as Test S). It forces the V1 model runner and disables async scheduling.
+- **Plan prediction:** ≥ 1.5× lower p50 at light load (c = 1).
+- **My predictions:**
+  - **A-b1:** c = 1 p50 ratio (suffix / base) = **0.55–0.75**, so the plan's prediction is likely met. (8B Test S: 0.51 at 80% repeats.)
+  - **A-b2:** at 40 and 60, throughput +5–20% and p50 −15–30%. Risk: synchronous scheduling costs throughput at load.
+  - **A-b3:** accuracy within ±2 points (suffix is lossless in principle; the SQL may still differ through batch nondeterminism, as on 8B).
+
+**A(d): FP8 KV cache on top of A(a) + A(b)** (jobs `p2_Ad_s{0,1,2}`):
+- **Cells:** `server:prio+suffix gw:60:auto gw:140:auto` vs `server:prio+suffix+fp8` with the same cells (K follows the larger pool). About 0.8 node-h per job, `--time 1:05`.
+- **Plan prediction:** ≥ 1.2× higher ceiling **if** KV memory limits it.
+- **My predictions:**
+  - **A-d1:** the KV pool is ≥ 1.9× the BF16 pool.
+  - **A-d2:** at 60 (KV not limiting), throughput within ±5%. At 140, throughput gain ≤ +10%, so the plan's ≥ 1.2× is likely NOT met, because GPU compute, not KV, caps the system.
+  - **A-d3:** accuracy within ±2 points.
+- **Risk:** FP8 KV on A100 (no FP8 tensor cores) may be rejected or fall back to a slow attention path; if the server fails to start, A(d) is recorded as not runnable on this hardware.
+
+**Budget:** A(a) ~3.3 + A(b) ~3.0 + A(d) ~2.4 = **~8.7 node-h** (caps 4.0 + 3.75 + 3.25).
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
