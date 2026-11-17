@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbkv-jointspec"
+version = "0.1.0"
+description = "dbkv option C: joint speculation and prefill budget (vLLM 0.33 scheduler wrapper, PLAN 2j)"
+requires-python = ">=3.10"
+
+[project.entry-points."vllm.general_plugins"]
+dbkv_jointspec = "dbkv_jointspec:register"
+
+[tool.setuptools]
+packages = ["dbkv_jointspec"]
