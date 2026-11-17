@@ -1046,6 +1046,31 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 
 *Observed, A(a) A-a2 at 140/min (stock → gateway): "evicted proper" 31 / 37 / 36% → 3.7 / 4.1 / 1.5% of uncached prompt tokens; preemptions 6 / 8 / 0 → 0; KV peak 1.00 → 0.55–0.76. **A-a2 MET**: admission protects the cache, but that does not turn into more correct tasks/min.*
 
+*Observed, A(b) re-run on the stock base (jobs 61450892 / 61450893 / 61450894, paired within the job; `results/p2_Ab_stock.json`):*
+- *c = 1 p50 ratio 0.60 / 0.63 / 0.59 (**A-b1' MET**).*
+- *40/min: p50 ×0.72 / 0.62 / 0.45; mean p95 172 → 125 s (−27%); throughput 34.1 → 36.6/min (+7%).*
+- *60/min: p50 ×0.43 / 0.46 / 0.95; mean p95 244 → 232 s (−5%); throughput 50.1 → 49.9/min (A-b2' met at 40; at 60 on two of three seeds).*
+- *Window accuracy: c = 1 −1.1, 40/min +0.2, **60/min −2.9 points** (−2.3 / −3.4 / −3.1). A-b3' NOT MET at 60.*
+- ***By the adoption rule as written: not adopted** (accuracy −2.9 > 2 points at 60/min).*
+- *Paired check, same tasks in both arms, tasks finished in both:*
+
+| base | level | right → wrong with suffix | wrong → right |
+|---|---|---|---|
+| stock | c = 1 | 1 | 0 |
+| stock | 40/min | 17 | 19 |
+| stock | **60/min** | **40** | **15** (sign test p ≈ 0.001) |
+| gateway | c = 1 | 1 | 0 |
+| gateway | 40/min | 12 | 23 |
+| gateway | 60/min | 27 | 25 |
+
+- *Pooled over all pairs: 98 vs 82. At c = 1 suffix is effectively lossless. Under load, answers flip both ways (batch nondeterminism), and the stock-60 cell alone shows a net loss.*
+
+*Decision (Aryan, Tue Nov 17 2026): confirm before deciding. **Confirmatory test, pre-registered before its data:***
+- *Two jobs `p2_Abc_s3` and `p2_Abc_s4` (debug QOS, `--time 0:30`): `server:fcfs open:60` vs `server:fcfs+suffix open:60` on new streams `w3_mix_s3` and `w3_mix_s4` (load seed = stream seed); s3 base first, s4 suffix first.*
+- ***Judged on seeds 3–4 only** (an independent replication; seeds 0–2 are reported pooled but not used for the decision).*
+- *Rule: **adopt suffix iff** (i) among tasks finished in both arms, right → wrong is not significantly larger than wrong → right (one-sided sign test, p ≥ 0.05), **and** (ii) the mean window-accuracy change over the two seeds is ≥ −2 points. Otherwise not adopted.*
+- *Prediction: (i) holds (no significant net loss), (ii) holds narrowly; adopted.*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
