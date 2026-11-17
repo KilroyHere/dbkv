@@ -26,7 +26,7 @@ CS 5470, done **solo** by Aryan Patel (ap2568); the team has not agreed on a dir
 | **Next phase (Nov 15, §2j)** | **Active.** Qwen3-32B (dense, BF16, non-thinking), one vLLM instance with TP = 4 on one full GPU node (4 × A100-40GB, `gpu&hbm40g`, regular QOS, 1 node-h per hour). Workload W3: our DuckDB agent on TPC-H SF10/SF100 and TPC-DS SF10. Options built in order A → C → B → E → D, no gates; predictions in §2j are the pre-registration. Doing Phases 0–2 now; Phase 3 later |
 | Phase 0: setup (§2j) | **Done (Nov 15).** (a) Qwen3-32B downloaded (65.52 GB, snapshot `9216db57`). (b) `DBKV_MODEL=Qwen/Qwen3-32B`; 8B scripts pin `DBKV_MODEL_8B`. (c) `slurm/node_lib.sh`, `node_serve.sbatch`, `node_smoke.sbatch`. (d) `kv_limit.py --tp 4` predicted 275k–308k tokens; **vLLM reports 305,328** (18.64 GiB KV per GPU); K = 305,328 ÷ per-task KV (≈105–139 for 2.2–2.9k; the 32B per-task KV is measured in Phase 1). (e) W3 built, tag `workload-w3-v1` (133/143 pairs, 783 gold instances). (f) agent ported, tag **`agent-32b-v1`**. (g) **Smoke PASS** (debug-QOS job 61369427, 5 min, 0.089 node-h): 0/20 no-SQL, tool calls parsed in non-thinking mode, 6.2 turns/task, task p50 12.7 s (c = 4), LLM 82% / DB 13% of task time, accuracy 3/20 (wrong answers checked: genuine SQL errors). Decode step 17.6 ms at batch 1, 24 ms at batch 64; burst 64 × 256 tokens: 861 out tok/s. Server start 161 s. Logging-off control moved to the Phase 1 sweep job. `results/smoke32_summary.json` |
 | Phase 1: baseline (§2j) | **Done (Nov 16).** Peak capacity ≈ 55 tasks/min (stock collapses to 36/min at 180/min). GPU compute, not KV, limits below ~100/min. Aryan set R\* = 40, R_o = 60 (no rate met the pre-registered ceiling rule, because of load-independent long tasks: SF100 SQL timeouts and runaway generation). At 40/min: p50 21.6 s, p95 150 s, DB 24% of task time. Re-render of the previous reply = 22–29% of uncached prefill. P1-a, P1-e met; P1-b, c, d, f not met. Tag `system-32b-base`. `results/p1_baseline.md` |
-| Phase 2: options A, C, B, E, D (§2j) | Next: `iris` check and the teammate-allocation question, then the A(a) pre-registration. A(a) gateway → A(b) suffix → A(c) W8A8 → A(d) FP8 KV, then C, B, E, D |
+| Phase 2: options A, C, B, E, D (§2j) | **In progress (Nov 16).** A(a) gateway: 1.36× throughput at 140/min but correct/min unchanged, accuracy −2.8 pts → **not adopted** (rule; Aryan). A(b) suffix on the gateway: light-load p50 0.59×, 60/min p50 −49/−67/+8%; **re-run on the stock base queued** (61450892–94). A(c) W8A8 skipped (no checkpoint). A(d) FP8 KV **not runnable** with suffix on A100 / vLLM 0.33. B, C, D, E built, merged (CPU-tested), not yet run. Phase 2 GPU so far ~6.5 node-h (stop and ask at 18) |
 | GPU budget (`iris`, Nov 15) | m4999_g: **14.2 of 45 node-h used, 30.8 left**. CPU: 0.5 of 10. Phases 1–2 are estimated at ~13–24 node-h (§6) |
 | **Framing (Nov 5 evening)** | **Serving many SQL agents on shared GPUs without changing their answers.** Contributions: (1) characterization, done; (2) shared per-DB brief as a cached prefix under load (Phase 1); (3) agent gateway with admission + priority (Phase 2); (4) multi-GPU routing by DB (Phase 3). Overnight rules are in §2f, the roadmap is §5 |
 | **Final system (Nov 6, B1)** | **compact whole-DB brief + gateway "both" (admission K = 72 + task-start priority), 1 GPU; no routing.** Tag `system-frozen-v1` (`0002aae`). A3 met: "both" beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% and 151% throughput at 250/min. P3 not met with compact (−3%) or full (−1%): routing dropped, a negative result |
@@ -1037,6 +1037,14 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 - *A-b3': accuracy within ±2 points.*
 
 *Same adoption rule.*
+
+*Observed, A(b) on top of the gateway (jobs 61437234 / 61437235 / 61437236, seeds 0 / 1 / 2, paired within the job; `results/p2_A.json`). Kept as the A(b)-on-gateway record; the adoption decision waits for the re-run on the stock base:*
+- *c = 1 p50: 12.1 → 7.1, 11.4 → 6.8, 11.1 → 6.4 s, **ratio 0.59 / 0.60 / 0.58** (A-b1 MET; the plan's "≥ 1.5× lower p50 at light load" MET, 1.7×).*
+- *40/min: p50 −35 / −21 / −31%; throughput +7 / +4 / +2%.*
+- *60/min: p50 **−49 / −67 / +8%**; p95 −40 / −35 / −12%; throughput +3 / +21 / −3% (A-b2 met on seeds 0–1, not on seed 2's heavy stream).*
+- *Accuracy within ±1.5 points at every level (A-b3 MET).*
+
+*Observed, A(a) A-a2 at 140/min (stock → gateway): "evicted proper" 31 / 37 / 36% → 3.7 / 4.1 / 1.5% of uncached prompt tokens; preemptions 6 / 8 / 0 → 0; KV peak 1.00 → 0.55–0.76. **A-a2 MET**: admission protects the cache, but that does not turn into more correct tasks/min.*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
