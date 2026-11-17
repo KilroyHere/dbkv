@@ -8,7 +8,10 @@
 #   restart:on|off    restart vLLM with instrumentation on/off (NODE_STEPLOG); the server starts "on"
 #   server:CFG        restart vLLM with config CFG = "+"-joined switches (Phase 2 arms; instrumentation stays on):
 #                       fcfs (stock), prio (--scheduling-policy priority), suffix (suffix decoding),
-#                       fp8 (--kv-cache-dtype fp8), w8a8 (model = $W8A8_MODEL). e.g. server:prio+suffix+fp8
+#                       fp8 (--kv-cache-dtype fp8), w8a8 (model = $W8A8_MODEL),
+#                       suffixN (suffix with num_speculative_tokens=N, e.g. suffix8; plain "suffix" = vLLM default 24),
+#                       js (option C: DBKV_JOINTSPEC=1 with JS_BUDGET (1024), JS_THETA (0.5), JS_MIN (0.05); decision
+#                       log $OUT/jointspec_srv<k>_{pid}.jsonl). e.g. server:prio+suffix+fp8, server:fcfs+suffix+js
 #                     If the first cell is server:CFG, the job starts with that config (no extra start).
 #   gw:RATE:K|auto    open loop through harness/gateway/gateway.py: admission K whole tasks + task-start priority;
 #                     auto = floor(KV pool of the running server / TASK_KV), TASK_KV default 2260 (PLAN 2j-A)
@@ -60,7 +63,7 @@ for cell in "$@"; do
     gw) [[ $x =~ ^[0-9.]+$ && ( $y =~ ^[0-9]+$ || $y == auto ) ]] || { echo "bad cell $cell"; ERR=1; }
           need=$(python -c "print(int($x * ($WARM + $MEAS) / 60 * 1.3) + 20)")
           (( need <= NST )) || { echo "cell $cell may need ~$need arrivals > stream $NST"; ERR=1; } ;;
-    server) for sw in ${x//+/ }; do [[ $sw =~ ^(fcfs|prio|suffix|fp8|w8a8)$ ]] || { echo "bad switch $sw in $cell"; ERR=1; }; done ;;
+    server) for sw in ${x//+/ }; do [[ $sw =~ ^(fcfs|prio|suffix|suffix[0-9]+|fp8|w8a8|js)$ ]] || { echo "bad switch $sw in $cell"; ERR=1; }; done ;;
     open) [[ $x =~ ^[0-9.]+$ ]] || { echo "bad cell $cell"; ERR=1; }
           need=$(python -c "print(int($x * ($WARM + $MEAS) / 60 * 1.3) + 20)")
           (( need <= NST )) || { echo "cell $cell may need ~$need arrivals > stream $NST"; ERR=1; } ;;
@@ -83,8 +86,12 @@ SRV=0; CFG=fcfs; LOGON=on
 cfg_flags() {  # $1 = CFG -> sets NODE_VLLM_EXTRA and NODE_MODEL
   local extra=() sw
   NODE_MODEL=$DBKV_MODEL
+  unset DBKV_JOINTSPEC DBKV_JOINTSPEC_BUDGET DBKV_JOINTSPEC_THETA DBKV_JOINTSPEC_MIN_VALUE DBKV_JOINTSPEC_LOG
   for sw in ${1//+/ }; do
     case $sw in
+      suffix[0-9]*) extra+=("--speculative-config {\"method\":\"suffix\",\"num_speculative_tokens\":${sw#suffix}}") ;;
+      js) export DBKV_JOINTSPEC=1 DBKV_JOINTSPEC_BUDGET=${JS_BUDGET:-1024} DBKV_JOINTSPEC_THETA=${JS_THETA:-0.5} \
+                 DBKV_JOINTSPEC_MIN_VALUE=${JS_MIN:-0.05} DBKV_JOINTSPEC_LOG="$OUT/jointspec_srv$((SRV + 1))_{pid}.jsonl" ;;
       prio) extra+=(--scheduling-policy priority) ;;
       suffix) extra+=('--speculative-config {"method":"suffix"}') ;;
       fp8) extra+=(--kv-cache-dtype fp8) ;;
@@ -99,6 +106,7 @@ start_server() {  # $1 = on|off (instrumentation), uses $CFG
   cfg_flags "$CFG"
   node_start_vllm $PORT "$OUT/server_$SRV.log" || exit 3
   echo "server $SRV ($1, $CFG): KV pool $(node_kv_pool "$OUT/server_$SRV.log")" | tee -a "$OUT/kv_pool.txt"
+  grep -hE "dbkv_jointspec: (ACTIVE|inactive)|max_num_scheduled_tokens|max_num_batched_tokens" "$OUT/server_$SRV.log" | tail -3
   printf "%s\t%s\t%s\n" $SRV "$CFG" "$1" >> "$OUT/servers.tsv"
 }
 printf "server\tcfg\tinstrumentation\n" > "$OUT/servers.tsv"

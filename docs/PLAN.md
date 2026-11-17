@@ -1078,6 +1078,27 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 - ***Prediction MET. Suffix decoding ADOPTED.*** *Best system so far = stock vLLM (FCFS, no gateway) + suffix decoding, tagged `system-32b-A`. The seeds 0–2 stock-60 flip excess (40 vs 15) did not replicate; it is kept on record as an observation.*
 - ***Option A summary:*** *A(a) not adopted (accuracy; correct/min unchanged), A(b) adopted, A(c) skipped (no checkpoint), A(d) not runnable with suffix.*
 
+#### 2j-C. Option C: joint speculation and prefill budget (pre-registered Tue Nov 17 2026, before any C job)
+
+*Do not edit; add observations below. Seen before writing: all of option A (§2j-A). Base = best system so far = stock vLLM + suffix decoding (`system-32b-A`). C = `harness/vllm_jointspec` (vLLM general plugin, switch `js`): per step, every decode gets its token, then the rest of a step budget B is shared between suffix drafts (by estimated acceptance p^k vs exchange rate θ) and prefill. Knobs: B = 1024, θ = 0.5, min draft value 0.05 (subagent defaults; engine/C_joint_spec.md). The builder's main risk: at our load vLLM's own budget may not bind, so C may do nothing unless B is set below it.*
+
+**Step 1, screen** (1 debug job `p2_C_screen`, seed 0, `--time 0:30`, ~0.4 node-h):
+- **Cells:** `server:fcfs+suffix open:60` then `server:fcfs+suffix+js open:60`.
+- **Not a verdict on C** (one run). It decides whether the full measurement is worth its ~2.5 node-h.
+- **Rule:** run step 2 iff
+  - (a) the server log says `dbkv_jointspec: ACTIVE`,
+  - (b) the decision log shows drafts trimmed (allocated < available) in ≥ 10% of steps, and
+  - (c) the C arm completes without errors.
+  
+  Otherwise C is recorded as "no effect at this load (budget does not bind)", with the measured trim rate, and the next step is B.
+- **Prediction:** (a) yes, (c) yes; (b) trimming in 5–30% of steps at B = 1024. That is, near the threshold.
+
+**Step 2, full measurement** (only if the screen passes; to be submitted with the arms below, unchanged):
+- **Jobs:** 3 jobs, seeds 0 / 1 / 2, in parallel, at 60/min (and 40/min).
+- **Arms (same job):** static suffix with K = 24 (default), K = 16, K = 8, then C (K = 24 + `js`).
+- **Plan prediction:** C ≥ 15% higher throughput at the ceiling than the best static K, with the same p50 (±10%).
+- **Adoption:** as in §2j-A, against the best static arm.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
