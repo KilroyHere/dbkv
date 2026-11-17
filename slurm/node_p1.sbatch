@@ -91,7 +91,7 @@ cfg_flags() {  # $1 = CFG -> sets NODE_VLLM_EXTRA and NODE_MODEL
     case $sw in
       suffix[0-9]*) extra+=("--speculative-config {\"method\":\"suffix\",\"num_speculative_tokens\":${sw#suffix}}") ;;
       js) export DBKV_JOINTSPEC=1 DBKV_JOINTSPEC_BUDGET=${JS_BUDGET:-1024} DBKV_JOINTSPEC_THETA=${JS_THETA:-0.5} \
-                 DBKV_JOINTSPEC_MIN_VALUE=${JS_MIN:-0.05} DBKV_JOINTSPEC_LOG="$OUT/jointspec_srv$((SRV + 1))_{pid}.jsonl" ;;
+                 DBKV_JOINTSPEC_MIN_VALUE=${JS_MIN:-0.05} DBKV_JOINTSPEC_LOG="$OUT/jointspec_srv${SRV}_{pid}.jsonl" ;;  # cfg_flags runs after SRV is incremented
       prio) extra+=(--scheduling-policy priority) ;;
       suffix) extra+=('--speculative-config {"method":"suffix"}') ;;
       fp8) extra+=(--kv-cache-dtype fp8) ;;
