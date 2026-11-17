@@ -1099,6 +1099,11 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 - **Plan prediction:** C ≥ 15% higher throughput at the ceiling than the best static K, with the same p50 (±10%).
 - **Adoption:** as in §2j-A, against the best static arm.
 
+*Change of process (Aryan, Tue Nov 17 2026, before any C result; applies to C, B, E, D and supersedes "3 repeats" in §2j rule 3 and in C step 2):*
+- *Each option gets **one paired run** (seed 0: option and base arms in the same job).*
+- ***A second run (seed 1) only if borderline**, defined now: (a) the best improvement over the base at any level (throughput or p95 mean) is between +2% and +15%; or (b) any level gets worse by 2–10%; or (c) window accuracy moves by more than 1.5 points at any level.*
+- *Adoption uses the same rule as §2j-A, applied to the 1 or 2 runs. Results from a single run are reported without error bars and marked as such.*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
