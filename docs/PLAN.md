@@ -1014,6 +1014,8 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 
 **Budget:** A(a) ~3.3 + A(b) ~3.0 + A(d) ~2.4 = **~8.7 node-h** (caps 4.0 + 3.75 + 3.25).
 
+*Observed, A(d) (Mon Nov 16 2026): **not runnable as pre-registered.** The `prio+suffix+fp8` server fails at start in both jobs that reached it (61437237 after its base arm, 61437238 at once). vLLM 0.33 selects FlashInfer for the FP8 KV cache, and FlashInfer's speculative-decoding path raises during CUDA-graph warm-up: `q_len_per_req=25 requires kv_len >= q_len_per_req ... got a request with kv_len=4`. So it is the FP8 KV + suffix combination that fails; FP8 alone was not tried. Seed 2 (61437239) was cancelled before it started. Aryan (Nov 16): record as not runnable and move on; no workaround run. Cost 0.43 + 0.03 node-h. Base-arm data kept, with seed 0 gateway + suffix: 47.6/min at 60, 49.0/min at 140 vs 52.6/min for gateway alone in A(a) seed 0, a different job and node. This hints that suffix may cost ~7% at deep overload, where it disables async scheduling; it is not measured in one job.*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
