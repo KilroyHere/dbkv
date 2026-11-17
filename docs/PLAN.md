@@ -1104,6 +1104,14 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 - ***A second run (seed 1) only if borderline**, defined now: (a) the best improvement over the base at any level (throughput or p95 mean) is between +2% and +15%; or (b) any level gets worse by 2–10%; or (c) window accuracy moves by more than 1.5 points at any level.*
 - *Adoption uses the same rule as §2j-A, applied to the 1 or 2 runs. Results from a single run are reported without error bars and marked as such.*
 
+*Observed, C screen (job 61475671, 0.40 node-h):*
+- *(a) `dbkv_jointspec: ACTIVE`.*
+- *(b) drafts trimmed in **38.8%** of 6,008 steps (39.5% of steps that had drafts); 6.2% of all drafts dropped. The C budget (1,024) was full in only 5.2% of steps, so the trimming comes mostly from the minimum-value cut (p^k < 0.05). Global acceptance estimate ended at 0.80. vLLM's own cap with suffix is `max_num_scheduled_tokens` = 2,048.*
+- *(c) no C-related errors. Both servers log the same 36 hermes tool-call JSON parse errors (truncated tool calls), and both arms have one task-level `AttributeError` in the agent.*
+- ***Screen passes**; prediction (b) 5–30% NOT MET (higher).*
+- *Single-run numbers (no verdict): 60/min suffix vs suffix + C: throughput 46.8 / 46.8, p50 23.5 / 26.8 s, p95 207 / 189 s, window accuracy 24.0 / 25.9%.*
+- *Step 2 submitted under the one-run rule: job `p2_C_s0` = `server:fcfs+suffix open:60 open:40`, `server:fcfs+suffix16 open:60 open:40`, `server:fcfs+suffix8 open:60 open:40`, `server:fcfs+suffix+js open:60 open:40`.*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
