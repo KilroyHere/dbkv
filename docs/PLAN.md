@@ -1016,6 +1016,28 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 
 *Observed, A(d) (Mon Nov 16 2026): **not runnable as pre-registered.** The `prio+suffix+fp8` server fails at start in both jobs that reached it (61437237 after its base arm, 61437238 at once). vLLM 0.33 selects FlashInfer for the FP8 KV cache, and FlashInfer's speculative-decoding path raises during CUDA-graph warm-up: `q_len_per_req=25 requires kv_len >= q_len_per_req ... got a request with kv_len=4`. So it is the FP8 KV + suffix combination that fails; FP8 alone was not tried. Seed 2 (61437239) was cancelled before it started. Aryan (Nov 16): record as not runnable and move on; no workaround run. Cost 0.43 + 0.03 node-h. Base-arm data kept, with seed 0 gateway + suffix: 47.6/min at 60, 49.0/min at 140 vs 52.6/min for gateway alone in A(a) seed 0, a different job and node. This hints that suffix may cost ~7% at deep overload, where it disables async scheduling; it is not measured in one job.*
 
+*Observed, A(a) (jobs 61437231 / 61437232 / 61437233, all paired within the job):*
+- *140/min, throughput both / stock:*
+  - *seed 0: 52.6 / 41.4 = 1.27×; seed 1: 52.4 / 37.4 = 1.40×; seed 2: 58.2 / 41.0 = 1.42×;*
+  - ***mean 1.36×*** *(A-a1 range 1.15–1.35: just above it; the plan's ≥ 1.5×: NOT MET).*
+- *40 and 60/min: within noise both ways (60/min throughput −5% / −5% / −9%, p95 −11% / +5% / +5%); admission never queued (A-a3 MET in spirit).*
+- *Gateway overhead p50 0.3 ms (A-a4 overhead part MET).*
+- *Window accuracy at 140: both 12.5 / 10.0 / 7.1% vs stock 13.7 / 13.7 / 10.8%, mean **−2.8 points** (A-a4 accuracy part NOT MET).*
+- *Cause, observed:*
+  - *the gateway finishes 15–20% more tasks, but correct tasks/min in the window are equal: 15.2 / 13.2 / 12.2 vs 14.4 / 12.0 / 13.6;*
+  - *accuracy of finished tasks is lower: 33 / 26 / 21% vs 42 / 41 / 37%;*
+  - *under stock overload the tasks that finish are the short, easy ones (implicit shortest-first), while FIFO admission spends the GPU on long, mostly failing tasks (runaway generation, SQL-timeout chains).*
+- *A-a2 (evictions) is reported in the step-log analysis (`results/p2_A.json`).*
+
+*Decision (Aryan, Mon Nov 16 2026, by the pre-registered adoption rule): **A(a) NOT adopted** (accuracy −2.8 points > 2 at 140/min). The best system so far stays stock vLLM. Because A(b) was stacked on A(a), **A(b) is re-run as stock vs stock + suffix** (below). B (goodput priority) is where admission is tested again, with value-based order, which targets exactly this failure.*
+
+*A(b) re-run, pre-registered Mon Nov 16 2026 ~20:35 PT. **Not blind:** A(b) on top of the gateway has been seen (seeds 0–1 complete, seed 2 partly). Jobs `p2_Ab2_s{0,1,2}`, `server:fcfs closed:1:30 open:40 open:60` vs `server:fcfs+suffix closed:1:30 open:40 open:60`, arm order alternating as before, ~1.0 node-h each, `--time 1:15`. Predictions (the A-b1–A-b3 bands, restated for the stock base):*
+- *A-b1': c = 1 p50 ratio 0.55–0.75;*
+- *A-b2': at 40 and 60, p50 −20 to −50% and throughput 0 to +20%;*
+- *A-b3': accuracy within ±2 points.*
+
+*Same adoption rule.*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
