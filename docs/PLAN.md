@@ -1112,6 +1112,37 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 - *Single-run numbers (no verdict): 60/min suffix vs suffix + C: throughput 46.8 / 46.8, p50 23.5 / 26.8 s, p95 207 / 189 s, window accuracy 24.0 / 25.9%.*
 - *Step 2 submitted under the one-run rule: job `p2_C_s0` = `server:fcfs+suffix open:60 open:40`, `server:fcfs+suffix16 open:60 open:40`, `server:fcfs+suffix8 open:60 open:40`, `server:fcfs+suffix+js open:60 open:40`.*
 
+#### 2j-B. Option B: goodput gateway (pre-registered Tue Nov 17 2026, before any B job)
+
+*Do not edit; add observations below. Seen before writing:*
+- *all of option A (incl. A(a): FIFO admission at 140/min finishes more tasks but not more correct ones);*
+- *the C screen;*
+- *the builder's offline analysis (value cut ≈ static turn limit).*
+
+*Base = best system so far = stock vLLM (FCFS) + suffix.*
+
+**What B is** (`harness/gateway/goodput.py`): the gateway reads each request's task state from the messages (turn, SQL timeouts, tool errors, output so far, tenant, …) and looks up P(success) and the remaining LLM work in a table. vLLM priority = value = P ÷ work, with `--admission K` (K = floor(pool / 2,260) ≈ 133). While tasks wait for admission, the lowest-value 10% of active tasks (turn ≥ 2) get a forced final answer (the agent's own last-turn message, `tool_choice` none).
+
+**The table:** `$DBKV_DATA/goodput/b_train_s12.json`, fit on seeds 1–2 only: Phase 1 repeats 61395034/35 and option-A jobs 61437232/33/35/36 and 61450893/94, without 140/min cells. B is evaluated on seed 0, so there is no task-level leakage; templates are shared across seeds.
+
+**Best static turn limit, fixed now from the training seeds:** **N = 8** (forced final at turn ≥ 8). It cuts 20% of LLM work and puts 3.3% of correct answers at risk; N = 7: 28% / 8.2%; N = 9: 14% / 2.3%.
+
+**Job** (one run, seed 0, per the one-run rule; `--time 1:20`, ~1.1 node-h): `server:fcfs+suffix open:40 open:140 gwx:40:tl8 gwx:140:tl8 server:prio+suffix gwx:40:gp gwx:140:gp`.
+
+**Metrics:**
+- correct tasks per minute in the measured window (tasks finishing in the window that are correct);
+- window accuracy;
+- p50 / p95;
+- number of forced tasks (`ev: force_final`).
+
+**Predictions:**
+- **Plan:** B ≥ 15% more correct tasks/min at overload (140/min) than the best static turn limit; accuracy changes ≤ 1 point below capacity (40/min).
+- **B-1:** at 140, correct/min B ÷ TL8 = **0.95–1.15**, so the plan's ≥ 1.15 is more likely NOT met; both ≥ base.
+- **B-2:** at 40, B never forces (no admission queue) and its accuracy is within ±1 point of base (plan's accuracy part MET). TL8's accuracy at 40 is −0.5 to −2 points.
+- **B-3:** at 140, B forces 5–20% of the tasks it admits.
+
+**Adoption** (B only; TL8 is the comparison, not a candidate): B joins iff its correct tasks/min at 140 is ≥ 5% above base, and accuracy at 40 does not fall by more than 2 points. A second run (seed 1) follows the borderline rule above.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*

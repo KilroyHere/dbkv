@@ -15,6 +15,11 @@
 #                     If the first cell is server:CFG, the job starts with that config (no extra start).
 #   gw:RATE:K|auto    open loop through harness/gateway/gateway.py: admission K whole tasks + task-start priority;
 #                     auto = floor(KV pool of the running server / TASK_KV), TASK_KV default 2260 (PLAN 2j-A)
+#   gwx:RATE:SET      open loop through the gateway with a named flag set (PLAN 2j-B), K = auto as above:
+#                       tl<N>  static turn limit N (no admission; priority only if the server has "prio")
+#                       gp     B: admission K + goodput priority (table $GP_TABLE) + forced final answer when tasks
+#                              wait for admission (--force-final 0 --force-frac 0.1 --force-min-turn 2)
+#                       gpp    B without forcing: admission K + goodput priority
 #                     (priority is injected only if the running server has "prio"); --idle-timeout $GW_IDLE (600)
 # Knobs: P1_STREAM (default $DBKV_DATA/w3/streams/w3_mix_s${P1_SEED}.jsonl), P1_SEED (0), P1_WARMUP (60),
 #   P1_MEASURE (300), P1_DRAIN (180), AGENT_TAG (agent-32b-v1), NODE_VLLM_EXTRA (option switches), DRY_RUN=1.
@@ -42,6 +47,7 @@ WARM=${P1_WARMUP:-60}; MEAS=${P1_MEASURE:-300}; DRAIN=${P1_DRAIN:-180}
 TAG=${AGENT_TAG:-agent-32b-v1}
 GW_IDLE=${GW_IDLE:-600}
 W8A8_MODEL=${W8A8_MODEL:-RedHatAI/Qwen3-32B-quantized.w8a8}
+GP_TABLE=${GP_TABLE:-$DBKV_DATA/goodput/b_train_s12.json}
 BMAP="tpch=$DBKV_DATA/w3/brief_tpch_compact.txt,tpcds=$DBKV_DATA/w3/brief_tpcds_compact.txt"
 [[ $# -gt 0 ]] || { echo "usage: sbatch --time=... slurm/node_p1.sbatch CELL..."; exit 1; }
 mkdir -p "$DBKV_DATA/tmp"
@@ -63,6 +69,8 @@ for cell in "$@"; do
     gw) [[ $x =~ ^[0-9.]+$ && ( $y =~ ^[0-9]+$ || $y == auto ) ]] || { echo "bad cell $cell"; ERR=1; }
           need=$(python -c "print(int($x * ($WARM + $MEAS) / 60 * 1.3) + 20)")
           (( need <= NST )) || { echo "cell $cell may need ~$need arrivals > stream $NST"; ERR=1; } ;;
+    gwx) [[ $x =~ ^[0-9.]+$ && $y =~ ^(tl[0-9]+|gp|gpp)$ ]] || { echo "bad cell $cell"; ERR=1; }
+          [[ $y =~ ^gp && ! -s $GP_TABLE ]] && { echo "MISSING goodput table $GP_TABLE"; ERR=1; } ;;
     server) for sw in ${x//+/ }; do [[ $sw =~ ^(fcfs|prio|suffix|suffix[0-9]+|fp8|w8a8|js)$ ]] || { echo "bad switch $sw in $cell"; ERR=1; }; done ;;
     open) [[ $x =~ ^[0-9.]+$ ]] || { echo "bad cell $cell"; ERR=1; }
           need=$(python -c "print(int($x * ($WARM + $MEAS) / 60 * 1.3) + 20)")
@@ -129,10 +137,16 @@ for cell in "$@"; do
     open) timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" --url $URL \
               --stream "$STREAM" --brief-map "$BMAP" --rate $x --warmup $WARM --measure $MEAS --drain-cap $DRAIN \
               --seed $SEED --metrics-urls $URL --label "$name" --out "$d" > "$d/loadgen.log" 2>&1; rc=$?; tail -1 "$d/loadgen.log" ;;
-    gw) GWP=$(node_free_port); gwprio=(); [[ "+$CFG+" == *+prio+* ]] && gwprio=(--priority)
-        K=$y; [[ $K == auto ]] && K=$(( $(node_kv_pool "$OUT/server_$SRV.log") / TASK_KV ))
-        echo "  gateway admission K=$K priority=${gwprio[*]:-off}"
-        python -u "$HSNAP/gateway/gateway.py" --port $GWP --backends $URL --admission $K "${gwprio[@]}" \
+    gw|gwx) GWP=$(node_free_port); gwprio=(); [[ "+$CFG+" == *+prio+* ]] && gwprio=(--priority)
+        KA=$(( $(node_kv_pool "$OUT/server_$SRV.log") / TASK_KV ))
+        if [[ $k == gw ]]; then K=$y; [[ $K == auto ]] && K=$KA; gwargs=(--admission $K "${gwprio[@]}")
+        else case $y in
+          tl*) gwargs=(--turn-limit ${y#tl} "${gwprio[@]}") ;;
+          gp)  gwargs=(--admission $KA --goodput "$GP_TABLE" --force-final 0 --force-frac 0.1 --force-min-turn 2) ;;
+          gpp) gwargs=(--admission $KA --goodput "$GP_TABLE") ;;
+        esac; fi
+        echo "  gateway ${gwargs[*]}"
+        python -u "$HSNAP/gateway/gateway.py" --port $GWP --backends $URL "${gwargs[@]}" \
           --idle-timeout $GW_IDLE --log "$d/gateway.jsonl" > "$d/gateway.out" 2>&1 & GW_PID=$!
         for _ in $(seq 1 30); do curl -sf http://127.0.0.1:$GWP/health >/dev/null && break; sleep 1; done
         timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" \
