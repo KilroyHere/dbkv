@@ -4,6 +4,11 @@
 # Cells, run in order on one server (wait idle + prefix-cache reset between cells):
 #   closed:C:N        closed loop: run_w.py, first N tasks of the stream, C concurrent agents
 #   open:RATE         open loop: harness/w3/loadgen_w3.py at RATE tasks/min (P1_WARMUP / P1_MEASURE / P1_DRAIN)
+#   openx:RATE:SET    open loop direct to vLLM with a named load-generator set (PLAN 2j-D):
+#                       dbdef  --db-sched off (DuckDB default: plain thread pool of 32)
+#                       dbx    --db-sched explain (option D: EXPLAIN classes, short first, caps 3 long / 8 heavy,
+#                              task-start order, starvation 30 s, deadline 60 s)
+#                       dbobs  --db-sched observe (FIFO + class log)
 #   burst             harness/w3/burst.py (64 x 2000-token prompts, 256 output tokens, 3 reps)
 #   restart:on|off    restart vLLM with instrumentation on/off (NODE_STEPLOG); the server starts "on"
 #   server:CFG        restart vLLM with config CFG = "+"-joined switches (Phase 2 arms; instrumentation stays on):
@@ -73,6 +78,7 @@ for cell in "$@"; do
     gw) [[ $x =~ ^[0-9.]+$ && ( $y =~ ^[0-9]+$ || $y == auto ) ]] || { echo "bad cell $cell"; ERR=1; }
           need=$(python -c "print(int($x * ($WARM + $MEAS) / 60 * 1.3) + 20)")
           (( need <= NST )) || { echo "cell $cell may need ~$need arrivals > stream $NST"; ERR=1; } ;;
+    openx) [[ $x =~ ^[0-9.]+$ && $y =~ ^(dbdef|dbx|dbobs)$ ]] || { echo "bad cell $cell"; ERR=1; } ;;
     gwx) [[ $x =~ ^[0-9.]+$ && $y =~ ^(tl[0-9]+|gp|gpp|pt|te)$ ]] || { echo "bad cell $cell"; ERR=1; }
           [[ $y =~ ^gp && ! -s $GP_TABLE ]] && { echo "MISSING goodput table $GP_TABLE"; ERR=1; } ;;
     server) for sw in ${x//+/ }; do [[ $sw =~ ^(fcfs|prio|suffix|suffix[0-9]+|fp8|w8a8|js|te)$ ]] || { echo "bad switch $sw in $cell"; ERR=1; }; done ;;
@@ -141,6 +147,17 @@ for cell in "$@"; do
   case $k in
     closed) python -u "$AGENT_DIR/run_w.py" --url $URL --stream "$STREAM" --n $y --concurrency $x --brief-map "$BMAP" \
               --out "$d" > "$d/run.log" 2>&1; rc=$?; tail -1 "$d/run.log" ;;
+    openx) case $y in
+          dbdef) lgx=(--db-sched off) ;;
+          dbx)   lgx=(--db-sched explain --db-sched-long-cap 3 --db-sched-heavy-cap 8 --db-sched-order taskstart
+                      --db-sched-starve-s 30 --db-sched-deadline-s 60) ;;
+          dbobs) lgx=(--db-sched observe) ;;
+        esac
+        echo "  loadgen ${lgx[*]}"
+        timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" --url $URL \
+              --stream "$STREAM" --brief-map "$BMAP" --rate $x --warmup $WARM --measure $MEAS --drain-cap $DRAIN \
+              --seed $SEED --metrics-urls $URL --label "$name" --out "$d" "${lgx[@]}" > "$d/loadgen.log" 2>&1; rc=$?
+        tail -1 "$d/loadgen.log" ;;
     open) timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" --url $URL \
               --stream "$STREAM" --brief-map "$BMAP" --rate $x --warmup $WARM --measure $MEAS --drain-cap $DRAIN \
               --seed $SEED --metrics-urls $URL --label "$name" --out "$d" > "$d/loadgen.log" 2>&1; rc=$?; tail -1 "$d/loadgen.log" ;;

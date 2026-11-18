@@ -1236,6 +1236,29 @@ The gateway tags each request with its task and signals task end to the engine (
 - *The mechanism works as designed, but at this load fewer evictions do not turn into speed. The GPU is compute-bound, and the saved prefill (~8%) is small next to decode.*
 - *Aryan (Nov 17): run the second run (seed 1), job 61515851, E arm first (order reversed), same cells. Adoption judged on seeds 0 + 1.*
 
+#### 2j-D. Option D: EXPLAIN query scheduling (pre-registered Tue Nov 17 2026, before any D job)
+
+*Do not edit; add observations below. Seen before writing: A, B, C, E seed 0, and the builder's CPU replay (32 closed-loop agents on SF100: p50 −6%, mean −20%, throughput +31%; long cap 3 sheds ~75% of long queries at the 60 s deadline). Base = best system = stock vLLM + suffix.*
+
+**What D is** (`harness/w3/dbsched.py`, installed by the load generator as the asyncio default executor; the agent is unchanged):
+- the agent's DuckDB calls are classified by `EXPLAIN` into short / medium / long;
+- scheduling is short first with backfilling, at most 3 long and 8 heavy at once, task-start order within a class, a 30 s starvation guard, and an interrupt at submit + 60 s.
+
+The default is the plain 32-thread pool.
+
+**"32 agents on SF100"** becomes an open-loop load on the SF100-only stream `w3_h100_s0` at **40/min**. Phase 1's SF100 tasks averaged 37 s at the mixed 40/min load, and an all-SF100 load has more DB contention, so 40/min should keep ~25–40 tasks in flight. In-flight counts are reported.
+
+**One paired run** (seed 0; debug QOS, `--time 0:30`, ~0.4 node-h): `server:fcfs+suffix openx:40:dbdef` then `server:fcfs+suffix openx:40:dbx`, each on a fresh server.
+
+**Predictions:**
+- **Plan:** ≥ 25% lower p50 task time than DuckDB's default.
+- **D-1:** p50 −0 to −20%, so the plan's ≥ 25% is likely NOT met (replay: −6%).
+- **D-2:** mean task time −10 to −25%; throughput +0 to +30%; DB queue time per task clearly lower.
+- **D-3:** window accuracy within ±2 points (deadline interrupts happen in both arms).
+- **D-4:** 25–40 tasks in flight on average.
+
+**Adoption:** §2j-A rule and the borderline rule.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
