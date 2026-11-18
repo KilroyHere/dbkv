@@ -11,7 +11,9 @@
 #                       fp8 (--kv-cache-dtype fp8), w8a8 (model = $W8A8_MODEL),
 #                       suffixN (suffix with num_speculative_tokens=N, e.g. suffix8; plain "suffix" = vLLM default 24),
 #                       js (option C: DBKV_JOINTSPEC=1 with JS_BUDGET (1024), JS_THETA (0.5), JS_MIN (0.05); decision
-#                       log $OUT/jointspec_srv<k>_{pid}.jsonl). e.g. server:prio+suffix+fp8, server:fcfs+suffix+js
+#                       log $OUT/jointspec_srv<k>_{pid}.jsonl),
+#                       te (option E: DBKV_TASKEVICT=1, mode $TE_MODE (full), TTL 300 s, task_end listener on $TE_PORT
+#                       (8899), stats log $OUT/taskevict_srv<k>.jsonl). e.g. server:prio+suffix+fp8, server:fcfs+suffix+js
 #                     If the first cell is server:CFG, the job starts with that config (no extra start).
 #   gw:RATE:K|auto    open loop through harness/gateway/gateway.py: admission K whole tasks + task-start priority;
 #                     auto = floor(KV pool of the running server / TASK_KV), TASK_KV default 2260 (PLAN 2j-A)
@@ -20,6 +22,8 @@
 #                       gp     B: admission K + goodput priority (table $GP_TABLE) + forced final answer when tasks
 #                              wait for admission (--force-final 0 --force-frac 0.1 --force-min-turn 2)
 #                       gpp    B without forcing: admission K + goodput priority
+#                       pt     pass-through (no policy; same proxy overhead as the te arm)
+#                       te     pass-through + option E task tags and task-end signals to $TE_PORT
 #                     (priority is injected only if the running server has "prio"); --idle-timeout $GW_IDLE (600)
 # Knobs: P1_STREAM (default $DBKV_DATA/w3/streams/w3_mix_s${P1_SEED}.jsonl), P1_SEED (0), P1_WARMUP (60),
 #   P1_MEASURE (300), P1_DRAIN (180), AGENT_TAG (agent-32b-v1), NODE_VLLM_EXTRA (option switches), DRY_RUN=1.
@@ -69,9 +73,9 @@ for cell in "$@"; do
     gw) [[ $x =~ ^[0-9.]+$ && ( $y =~ ^[0-9]+$ || $y == auto ) ]] || { echo "bad cell $cell"; ERR=1; }
           need=$(python -c "print(int($x * ($WARM + $MEAS) / 60 * 1.3) + 20)")
           (( need <= NST )) || { echo "cell $cell may need ~$need arrivals > stream $NST"; ERR=1; } ;;
-    gwx) [[ $x =~ ^[0-9.]+$ && $y =~ ^(tl[0-9]+|gp|gpp)$ ]] || { echo "bad cell $cell"; ERR=1; }
+    gwx) [[ $x =~ ^[0-9.]+$ && $y =~ ^(tl[0-9]+|gp|gpp|pt|te)$ ]] || { echo "bad cell $cell"; ERR=1; }
           [[ $y =~ ^gp && ! -s $GP_TABLE ]] && { echo "MISSING goodput table $GP_TABLE"; ERR=1; } ;;
-    server) for sw in ${x//+/ }; do [[ $sw =~ ^(fcfs|prio|suffix|suffix[0-9]+|fp8|w8a8|js)$ ]] || { echo "bad switch $sw in $cell"; ERR=1; }; done ;;
+    server) for sw in ${x//+/ }; do [[ $sw =~ ^(fcfs|prio|suffix|suffix[0-9]+|fp8|w8a8|js|te)$ ]] || { echo "bad switch $sw in $cell"; ERR=1; }; done ;;
     open) [[ $x =~ ^[0-9.]+$ ]] || { echo "bad cell $cell"; ERR=1; }
           need=$(python -c "print(int($x * ($WARM + $MEAS) / 60 * 1.3) + 20)")
           (( need <= NST )) || { echo "cell $cell may need ~$need arrivals > stream $NST"; ERR=1; } ;;
@@ -95,9 +99,12 @@ cfg_flags() {  # $1 = CFG -> sets NODE_VLLM_EXTRA and NODE_MODEL
   local extra=() sw
   NODE_MODEL=$DBKV_MODEL
   unset DBKV_JOINTSPEC DBKV_JOINTSPEC_BUDGET DBKV_JOINTSPEC_THETA DBKV_JOINTSPEC_MIN_VALUE DBKV_JOINTSPEC_LOG
+  unset DBKV_TASKEVICT DBKV_TASKEVICT_MODE DBKV_TASKEVICT_TTL DBKV_TASKEVICT_PORT DBKV_TASKEVICT_LOG
   for sw in ${1//+/ }; do
     case $sw in
       suffix[0-9]*) extra+=("--speculative-config {\"method\":\"suffix\",\"num_speculative_tokens\":${sw#suffix}}") ;;
+      te) export DBKV_TASKEVICT=1 DBKV_TASKEVICT_MODE=${TE_MODE:-full} DBKV_TASKEVICT_TTL=300 \
+                 DBKV_TASKEVICT_PORT=${TE_PORT:-8899} DBKV_TASKEVICT_LOG="$OUT/taskevict_srv${SRV}.jsonl" ;;
       js) export DBKV_JOINTSPEC=1 DBKV_JOINTSPEC_BUDGET=${JS_BUDGET:-1024} DBKV_JOINTSPEC_THETA=${JS_THETA:-0.5} \
                  DBKV_JOINTSPEC_MIN_VALUE=${JS_MIN:-0.05} DBKV_JOINTSPEC_LOG="$OUT/jointspec_srv${SRV}_{pid}.jsonl" ;;  # cfg_flags runs after SRV is incremented
       prio) extra+=(--scheduling-policy priority) ;;
@@ -114,7 +121,7 @@ start_server() {  # $1 = on|off (instrumentation), uses $CFG
   cfg_flags "$CFG"
   node_start_vllm $PORT "$OUT/server_$SRV.log" || exit 3
   echo "server $SRV ($1, $CFG): KV pool $(node_kv_pool "$OUT/server_$SRV.log")" | tee -a "$OUT/kv_pool.txt"
-  grep -hE "dbkv_jointspec: (ACTIVE|inactive)|max_num_scheduled_tokens|max_num_batched_tokens" "$OUT/server_$SRV.log" | tail -3
+  grep -hE "dbkv_jointspec: (ACTIVE|inactive)|dbkv_taskevict|task_end listener|max_num_scheduled_tokens" "$OUT/server_$SRV.log" | tail -4
   printf "%s\t%s\t%s\n" $SRV "$CFG" "$1" >> "$OUT/servers.tsv"
 }
 printf "server\tcfg\tinstrumentation\n" > "$OUT/servers.tsv"
@@ -144,6 +151,8 @@ for cell in "$@"; do
           tl*) gwargs=(--turn-limit ${y#tl} "${gwprio[@]}") ;;
           gp)  gwargs=(--admission $KA --goodput "$GP_TABLE" --force-final 0 --force-frac 0.1 --force-min-turn 2) ;;
           gpp) gwargs=(--admission $KA --goodput "$GP_TABLE") ;;
+          pt)  gwargs=("${gwprio[@]}") ;;
+          te)  gwargs=("${gwprio[@]}" --taskevict http --taskevict-endpoints http://127.0.0.1:${TE_PORT:-8899}/task_end) ;;
         esac; fi
         echo "  gateway ${gwargs[*]}"
         python -u "$HSNAP/gateway/gateway.py" --port $GWP --backends $URL "${gwargs[@]}" \

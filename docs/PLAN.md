@@ -1178,6 +1178,32 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 
 *Amendment for seed 1 (before its data): TL8 gets its own fresh server: `server:fcfs+suffix open:40 open:140 server:fcfs+suffix gwx:40:tl8 gwx:140:tl8 server:prio+suffix gwx:40:gp gwx:140:gp`. Adoption is judged on seeds 0 + 1 (mean correct/min at 140 vs base ≥ +5%; accuracy at 40 ≥ −2 points).*
 
+#### 2j-E. Option E: task-aware eviction (pre-registered Tue Nov 17 2026, before any E job)
+
+*Do not edit; add observations below. Seen before writing: options A, C, and B seed 0. Base = best system = stock vLLM (FCFS) + suffix.*
+
+**What E is** (`harness/vllm_taskevict`, mode `full`): the free-block queue gets tiers, popped in this order:
+1. blocks of ended tasks;
+2. untagged blocks;
+3. blocks of paused live tasks (LRU within the tier, TTL 300 s).
+
+The gateway tags each request with its task and signals task end to the engine (`--taskevict http`). Preemption by task priority is not active, because the base is FCFS.
+
+**One paired run** (one-run rule; seed 0; debug QOS, `--time 0:30`, ~0.4 node-h):
+- **Cells:** `server:fcfs+suffix gwx:140:pt` then `server:fcfs+suffix+te gwx:140:te`. Both arms go through the same pass-through gateway, each on a fresh server.
+- **140/min only:** live-task evictions are ~0 below ~100/min (Phase 1), so below capacity E has nothing to act on.
+
+**Metric for the plan's prediction:** prefill tokens = uncached prompt tokens (Σ (prompt − cached) over turns), per task finished in the measured window.
+
+**Predictions:**
+- **Plan:** ≥ 10% fewer prefill tokens at overload.
+- **E-1:** the base's "evicted proper" share at 140 is 15–35%; E cuts it by at least half.
+- **E-2:** prefill per finished task −5% to −15%, so the plan's −10% is a coin flip.
+- **E-3:** throughput within ±5%, window accuracy within ±2 points.
+- **E-4:** the E server starts and runs alongside suffix. The E tier log shows ENDED-tier evictions > 0, `end_unseen` = 0, and the gateway's `taskevict_errors` = 0.
+
+**Adoption:** the §2j-A rule (throughput or p95 ≥ 5% better at 140, nothing worse by > 5%, accuracy ≥ −2 points), and the borderline rule.
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
