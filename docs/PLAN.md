@@ -1259,6 +1259,8 @@ The default is the plain 32-thread pool.
 
 **Adoption:** §2j-A rule and the borderline rule.
 
+*Observed, first D job (61515870, 0.40 node-h): the D arm failed at start (`ModuleNotFoundError: g2_run`). My per-job harness snapshot did not include `calib/`, which D's classifier imports. The base arm ran: DuckDB default on SF100 at 40/min gives p50 94 s, p95 264 s, throughput 20.2/min, and the GPU idle 49% of the time. On this stream the database, not the GPU, is the bottleneck. Fixed: the snapshot now mirrors the repo layout (`harness/gateway`, `harness/w3` incl. `*.json`, `calib`), tested with a mock run of `--db-sched explain`. D is re-run with the same cells (job p2_D_s0b).*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*

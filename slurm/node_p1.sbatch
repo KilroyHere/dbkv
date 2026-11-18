@@ -64,12 +64,13 @@ AGENT_DIR=$(mktemp -d -p "$DBKV_DATA/tmp" agent32.XXXX)
 for f in run_w.py tools_duckdb.py; do git show "$TAG:harness/agent_duckdb/$f" > "$AGENT_DIR/$f" || { echo "export $f from $TAG failed"; exit 1; }; done
 # Snapshot the harness (gateway, load generator, burst) at job start, so repo changes during the job cannot leak in.
 HSNAP=$(mktemp -d -p "$DBKV_DATA/tmp" harness.XXXX)
-mkdir -p "$HSNAP/gateway" "$HSNAP/w3"
-cp harness/gateway/*.py "$HSNAP/gateway/" && cp harness/w3/*.py "$HSNAP/w3/" || { echo "harness snapshot failed"; exit 1; }
+mkdir -p "$HSNAP/harness/gateway" "$HSNAP/harness/w3" "$HSNAP/calib"   # same layout as the repo (dbsched imports ../../calib)
+cp harness/gateway/*.py "$HSNAP/harness/gateway/" && cp harness/w3/*.py harness/w3/*.json "$HSNAP/harness/w3/" \
+  && cp calib/*.py "$HSNAP/calib/" || { echo "harness snapshot failed"; exit 1; }
 TASK_KV=${TASK_KV:-2260}
 ERR=0
 for f in "$STREAM" "$DBKV_DATA/w3/brief_tpch_compact.txt" "$DBKV_DATA/w3/brief_tpcds_compact.txt"; do [[ -s $f ]] || { echo "MISSING $f"; ERR=1; }; done
-python -m py_compile "$AGENT_DIR/run_w.py" "$AGENT_DIR/tools_duckdb.py" "$HSNAP/w3/loadgen_w3.py" "$HSNAP/w3/burst.py" "$HSNAP/gateway/gateway.py" || ERR=1
+python -m py_compile "$AGENT_DIR/run_w.py" "$AGENT_DIR/tools_duckdb.py" "$HSNAP/harness/w3/loadgen_w3.py" "$HSNAP/harness/w3/burst.py" "$HSNAP/harness/gateway/gateway.py" || ERR=1
 NST=$(wc -l < "$STREAM")
 for cell in "$@"; do
   IFS=: read -r k x y <<< "$cell"
@@ -154,11 +155,11 @@ for cell in "$@"; do
           dbobs) lgx=(--db-sched observe) ;;
         esac
         echo "  loadgen ${lgx[*]}"
-        timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" --url $URL \
+        timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/harness/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" --url $URL \
               --stream "$STREAM" --brief-map "$BMAP" --rate $x --warmup $WARM --measure $MEAS --drain-cap $DRAIN \
               --seed $SEED --metrics-urls $URL --label "$name" --out "$d" "${lgx[@]}" > "$d/loadgen.log" 2>&1; rc=$?
         tail -1 "$d/loadgen.log" ;;
-    open) timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" --url $URL \
+    open) timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/harness/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" --url $URL \
               --stream "$STREAM" --brief-map "$BMAP" --rate $x --warmup $WARM --measure $MEAS --drain-cap $DRAIN \
               --seed $SEED --metrics-urls $URL --label "$name" --out "$d" > "$d/loadgen.log" 2>&1; rc=$?; tail -1 "$d/loadgen.log" ;;
     gw|gwx) GWP=$(node_free_port); gwprio=(); [[ "+$CFG+" == *+prio+* ]] && gwprio=(--priority)
@@ -172,15 +173,15 @@ for cell in "$@"; do
           te)  gwargs=("${gwprio[@]}" --taskevict http --taskevict-endpoints http://127.0.0.1:${TE_PORT:-8899}/task_end) ;;
         esac; fi
         echo "  gateway ${gwargs[*]}"
-        python -u "$HSNAP/gateway/gateway.py" --port $GWP --backends $URL "${gwargs[@]}" \
+        python -u "$HSNAP/harness/gateway/gateway.py" --port $GWP --backends $URL "${gwargs[@]}" \
           --idle-timeout $GW_IDLE --log "$d/gateway.jsonl" > "$d/gateway.out" 2>&1 & GW_PID=$!
         for _ in $(seq 1 30); do curl -sf http://127.0.0.1:$GWP/health >/dev/null && break; sleep 1; done
-        timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" \
+        timeout $(( WARM + MEAS + DRAIN + 900 )) python -u "$HSNAP/harness/w3/loadgen_w3.py" --agent-dir "$AGENT_DIR" \
               --url http://127.0.0.1:$GWP --gateway --stream "$STREAM" --brief-map "$BMAP" --rate $x --warmup $WARM \
               --measure $MEAS --drain-cap $DRAIN --seed $SEED --metrics-urls $URL --label "$name" --out "$d" \
               > "$d/loadgen.log" 2>&1; rc=$?; tail -1 "$d/loadgen.log"
         kill $GW_PID 2>/dev/null; wait $GW_PID 2>/dev/null; GW_PID= ;;
-    burst) python -u "$HSNAP/w3/burst.py" --url $URL --label "srv${SRV}_steplog${NODE_STEPLOG}" --out "$d/burst.json" \
+    burst) python -u "$HSNAP/harness/w3/burst.py" --url $URL --label "srv${SRV}_steplog${NODE_STEPLOG}" --out "$d/burst.json" \
               > "$d/burst.log" 2>&1; rc=$?; tail -1 "$d/burst.log" ;;
   esac
   printf "%s\t%s\t%s\t%s\t%s\n" "$name" $SRV $t0 $(date +%s.%N) $rc >> "$OUT/cells.tsv"
