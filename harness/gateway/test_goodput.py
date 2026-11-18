@@ -1,6 +1,6 @@
 """Login-node tests for option B (goodput gateway): no GPU, a few seconds of CPU.
 
-    python harness/gateway/test_goodput.py [--runs /pscratch/sd/a/ap2568/dbkv/runs/p1] [--table T.json]
+    python harness/gateway/test_goodput.py [--runs $DBKV_DATA/runs/p1] [--table T.json]
 
 1. LAST / NUDGE in goodput.py are identical to the frozen agent's (harness/agent_duckdb/run_w.py).
 2. Feature extraction on real Phase 1 turns: every task's history is rebuilt as the chat `messages` the agent
@@ -346,7 +346,7 @@ async def run_agent_e2e(tmp):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--runs", default="/pscratch/sd/a/ap2568/dbkv/runs/p1")
+    ap.add_argument("--runs", default=os.path.join(os.environ.get("DBKV_DATA", os.path.expandvars("$SCRATCH/dbkv")), "runs", "p1"))
     ap.add_argument("--table", default="")
     a = ap.parse_args()
     tmp = tempfile.mkdtemp(prefix="test_goodput_", dir=os.environ.get("TMPDIR"))

@@ -14,7 +14,7 @@ Exit 0 on PASS, 4 on FAIL.
 import argparse, json, os, statistics as st, subprocess, sys, time, urllib.request
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-DATA = os.environ.get("DBKV_DATA", "/pscratch/sd/a/ap2568/dbkv")
+DATA = os.environ.get("DBKV_DATA", os.path.expandvars("$SCRATCH/dbkv"))
 
 
 def probe(url, model, agent_dir):

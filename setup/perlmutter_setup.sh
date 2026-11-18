@@ -25,6 +25,20 @@ source "$DBKV_ENV/bin/activate"
 python -m pip install -q --upgrade pip
 python -m pip install -q -r "$DBKV_REPO/requirements.txt" -r "$HERE/requirements-gpu.txt"
 
+echo "== 2b. Phase 2 extras (PLAN 2j): suffix decoding + our vLLM plugins"
+# arctic-inference provides vLLM's "suffix" speculative method. Its C++20 build needs GCC 13 (system g++ 7.5 is too old,
+# and GCC 14 output needs a newer libstdc++ than NERSC Python bundles); --no-deps keeps torch/vLLM as they are.
+# Never use its [vllm] extra (it pins vllm 0.10.1). See docs/PERLMUTTER.md, 2026-11-07.
+if ! python -c "import arctic_inference" 2>/dev/null; then
+  CC=/opt/cray/pe/gcc-native/13/bin/gcc CXX=/opt/cray/pe/gcc-native/13/bin/g++ \
+    python -m pip install -q --no-deps --no-cache-dir arctic-inference==0.1.1
+fi
+# Our own plugins, editable and inert unless switched on: per-step engine log (DBKV_STEPLOG), option C
+# (DBKV_JOINTSPEC=1), option E (DBKV_TASKEVICT=1).
+for pkg in vllm_steplog vllm_jointspec vllm_taskevict; do
+  python -m pip install -q --no-deps --no-build-isolation -e "$DBKV_REPO/harness/$pkg"
+done
+
 echo "== 3. Record exact versions"
 python -m pip freeze > "$HERE/requirements.lock.txt"
 python - <<'EOF'

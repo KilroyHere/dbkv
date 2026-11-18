@@ -84,7 +84,8 @@ The two non-`fig_` plots, `g1v2_gap_vs_ratio.png` and `g1v2b_gap_vs_ratio.png`, 
 
 Setup for every number in this section: **Qwen/Qwen3-32B** (dense, BF16, non-thinking, temperature 0), one vLLM 0.33 instance with `--tensor-parallel-size 4` on one Perlmutter GPU node (4 × A100-SXM4-40GB, NVLink). Workload **W3**: the DuckDB agent on TPC-H SF10/SF100 and TPC-DS SF10 with executable gold SQL. Numbers from the 8B tables above do not carry over.
 
-Every row lists its pre-registered prediction (PLAN §2j), the measured added gain on the best system so far (mean ± spread over 3 repeats), accuracy as a check, and the job ids. Planned file names: `w3_*` (workload), `kv32_*` (KV model and K), `base32_*` (Phase 1), `opt_A{a,b,c,d}_*`, `opt_C_*`, `opt_B_*`, `opt_E_*`, `opt_D_*` (Phase 2).
+Every row lists its pre-registered prediction (PLAN §2j), the measured gain, the verdict and the job ids. Repeats: 3 for A(a) and A(b), then 1–2 paired runs per option (Aryan, Nov 17). The write-up is [p2_summary.md](p2_summary.md).
+**Raw data for this section** (team-readable): `/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs-32b/<job>/` (every Phase 1–2 job: cells, turns, tasks, step logs, server logs), `dbkv-data/w3/` (W3 bank, streams, briefs) and `dbkv-data/goodput/` (option B table). `harness/w3/analyze_p1.py <job dirs> --out X.json` rebuilds every `p1_*` / `p2_*` JSON from them, and `python results/fig_p1.py` rebuilds the figure from the JSONs.
 
 | Step | Prediction (§2j) | Measured | Result file(s) | Figure | Job ids | Date |
 |---|---|---|---|---|---|---|

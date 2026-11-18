@@ -1,7 +1,17 @@
 # harness: agent, briefs, gateway, and the G3 / D5 tools
 
 - `replay.py`: G3 synthetic session replayer against a running vLLM server (random-token sessions, sampled SQL pauses, exact prefix extension so prefix caching can hit).
-- `kv_limit.py`: predicted KV-memory limit (concurrent resident sessions) for a model under vLLM. Pure arithmetic; safe on a login node. Being extended in PLAN §2j Phase 0 (d) for Qwen3-32B with tensor parallelism (KV split over 4 GPUs) and the gateway admission limit K.
+- `kv_limit.py`: predicted KV-memory limit for a model under vLLM, with `--tp` for tensor parallelism and `--task-kv` for the admission limit K. Pure arithmetic; safe on a login node. For Qwen3-32B TP = 4 it predicted 275k–308k tokens; vLLM reports 305,328.
+- `w3/`: the Qwen3-32B workload and tools (PLAN §2j):
+  - `build_w3.py`: W3 builder (gold-SQL bank, then fixed-seed streams);
+  - `loadgen_w3.py`: open-loop Poisson load running the tagged agent; `--gateway`; `--db-sched` for option D;
+  - `analyze_p1.py`: per-cell metrics, prefix-cache miss causes (cold / new / re-render / evicted proper), step-log stats, KV per task;
+  - `smoke.py`: tool-call probe + 20 tasks;
+  - `burst.py`: fixed synthetic burst (logging-overhead control);
+  - `dbsched.py` / `dbsched_model.json` / `bench_dbsched.py`: option D (see below).
+- `vllm_steplog/`: vLLM stat-logger plugin, one JSONL line per engine step (prefill / decode / spec tokens, KV, prefix cache, evictions) to `$DBKV_STEPLOG`. Inert when unset. Note: `step_ms` is launch time under async scheduling, not GPU time.
+- `vllm_jointspec/`: option C, a vLLM general plugin (scheduler wrapper), on with `DBKV_JOINTSPEC=1`. Design: `engine/C_joint_spec.md`.
+- `vllm_taskevict/`: option E, a vLLM general plugin (eviction tiers + task-end listener), on with `DBKV_TASKEVICT=1`, plus gateway `--taskevict`. Design: `engine/E_task_eviction.md`.
 - `g3_summarize.py`: turns a G3 sweep directory into `results/g3_table.csv` and `results/g3_summary.md`.
 - `d5_probe.py` / `d5_analyze.py`: Test 1 (D5) idle probe of per-request overhead, and its pre-registered analysis (`results/d5_summary.md`).
 - `agent_duckdb/`: the agent on DuckDB. W port of the frozen agent (tag `agent-duckdb-v1`, Qwen3-8B); ported to Qwen3-32B and the W3 analytics workload in PLAN §2j (tag `agent-32b-v1`).

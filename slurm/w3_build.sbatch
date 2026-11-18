@@ -12,9 +12,9 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=80G
 #SBATCH --time=01:30:00
-#SBATCH --output=/pscratch/sd/a/ap2568/dbkv/logs/%x-%j.out
 set -uo pipefail
-source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
+# Submit from the repo root (setup/dbkv-sbatch does this and puts the log in $DBKV_DATA/logs).
+source "${SLURM_SUBMIT_DIR:-$PWD}/setup/env.sh" || { echo "submit from the repo root"; exit 1; }
 cd "$DBKV_REPO"
 echo "$(date -Is) $(hostname) job ${SLURM_JOB_ID:-} repo $(git rev-parse --short HEAD)"
 if [[ ${1:-all} != streams ]]; then

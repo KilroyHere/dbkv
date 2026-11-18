@@ -65,7 +65,7 @@ def cls_of(sec):
 # ---------------------------------------------------------------------------------------------------- extract
 def cmd_extract(a):
     paths = {}
-    for f in glob.glob(os.path.join(os.environ.get("DBKV_DATA", "/pscratch/sd/a/ap2568/dbkv"), "w3/streams/*.jsonl")):
+    for f in glob.glob(os.path.join(os.environ.get("DBKV_DATA", os.path.expandvars("$SCRATCH/dbkv")), "w3/streams/*.jsonl")):
         for l in open(f):
             t = json.loads(l)
             paths[t["tenant"]] = t["db_path"]
@@ -413,7 +413,7 @@ def main():
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
     e = sp.add_parser("extract")
-    e.add_argument("--runs", default="/pscratch/sd/a/ap2568/dbkv/runs/p1")
+    e.add_argument("--runs", default=os.path.join(os.environ.get("DBKV_DATA", os.path.expandvars("$SCRATCH/dbkv")), "runs", "p1"))
     e.add_argument("--cells", default="")
     e.add_argument("--out", required=True)
     c = sp.add_parser("calib")
@@ -425,7 +425,7 @@ def main():
     c.add_argument("--quota", default="tpch_sf100=400,tpcds_sf10=150,tpch_sf10=100")
     f = sp.add_parser("fit")
     f.add_argument("--calib", required=True)
-    f.add_argument("--g2", default="/pscratch/sd/a/ap2568/dbkv/runs/g2/60826277/results.csv")
+    f.add_argument("--g2", default=os.path.join(os.environ.get("DBKV_DATA", os.path.expandvars("$SCRATCH/dbkv")), "runs", "g2", "60826277", "results.csv"))
     f.add_argument("--model-out", default="")
     f.add_argument("--report", required=True)
     f.add_argument("--long-decide-s", type=float, default=1.0, help="predicted s above which a query is long")

@@ -4,7 +4,24 @@ CS 5470 (Aryan Patel). Many tool-using SQL agents share one or a few GPUs. Every
 
 **Start with [AGENTS.md](AGENTS.md).**
 
-**Status (Nov 15): next phase, "improving model serving for data agents on one node"** ([docs/PLAN.md](docs/PLAN.md) §2j). Qwen3-32B (dense, BF16, non-thinking) served by one vLLM instance with tensor parallel 4 on a full Perlmutter GPU node (4 × A100-40GB), driving our SQL agent on DuckDB analytics data (TPC-H SF10/SF100, TPC-DS SF10). Five serving options are built one after another, A → C → B → E → D (inference stack, joint speculation, goodput gateway, task-aware eviction, EXPLAIN query scheduling), each measured as the added gain on the best system so far. Phase 0 (setup) is in progress. The midpoint pause (Nov 6) and Part C are superseded.
+**Status (Nov 18): Phases 0–2 of the next phase are done** ([docs/PLAN.md](docs/PLAN.md) §2j, [results/p2_summary.md](results/p2_summary.md)).
+- **Setup:** Qwen3-32B (dense, BF16) served by one vLLM instance with tensor parallel 4 on a full Perlmutter node, driving our SQL agent on DuckDB analytics data (TPC-H SF10/SF100, TPC-DS SF10).
+- **Final system: stock vLLM + suffix decoding + EXPLAIN-based query scheduling.**
+  - Suffix decoding: about halves task time at light and moderate load, and avoids the overload collapse.
+  - EXPLAIN-based query scheduling: −63% p50 when SF100 queries are the bottleneck.
+- **Not adopted** (with measured reasons):
+  - gateway admission, which raises throughput but not correct answers per minute;
+  - goodput forcing;
+  - joint speculation;
+  - task-aware eviction.
+- **Phase 3** (headline, ablation, MoE check) is not started.
+
+## Headline results, 32B (Phases 1–2)
+
+1. **Baseline.** Stock vLLM peaks at ~55 agent tasks/min and degrades past it; the GPU, not KV memory, is the limit. `results/p1_baseline.md`, `results/fig_p1_load_curve.png`.
+2. **Suffix decoding.** Light-load p50 0.59–0.63×; at 40/min p50 −28 to −55%. Accuracy unchanged (paired confirmatory test). `results/p2_summary.md`.
+3. **EXPLAIN query scheduling.** With the SF100-only stream at 40/min: p50 216 → 49 s and 85 → 63 s, throughput +33%. `results/p2_D.json`.
+4. **Throughput ≠ correct throughput.** Gateway admission gives 1.36× throughput at overload, but the same number of correct answers per minute: stock overload implicitly finishes the short, likely-correct tasks.
 
 ## Headline results (8B record, Nov 4–9)
 

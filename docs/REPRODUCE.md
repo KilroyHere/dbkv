@@ -16,7 +16,7 @@ Job arguments below were taken from the first lines of each job's Slurm log (`$S
 
 | What | Where / how |
 |---|---|
-| Paths, module, caches | `source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh`. It sets `DBKV_REPO` (this repo on CFS), `DBKV_DATA=$SCRATCH/dbkv`, `DBKV_ENV=$SCRATCH/envs/dbkv-env` (venv, activated if present), `HF_HOME=$SCRATCH/huggingface`, `DBKV_MODEL=Qwen/Qwen3-8B`, and loads module `python/3.11-24.1.0`. It also puts the FlashInfer, vLLM, Triton, Inductor, uv and pip caches under `$SCRATCH/cache`, because `$HOME` doesn't support `flock` from compute nodes (jobs 60824576 and 60825842 failed on that). |
+| Paths, module, caches | `source setup/env.sh` from your clone. It sets `DBKV_REPO` (the clone `env.sh` lives in; Aryan's clone on CFS is the fallback), `DBKV_DATA=$SCRATCH/dbkv`, `DBKV_ENV=$SCRATCH/envs/dbkv-env` (venv, activated if present), `HF_HOME=$SCRATCH/huggingface`, `DBKV_MODEL=Qwen/Qwen3-8B`, and loads module `python/3.11-24.1.0`. It also puts the FlashInfer, vLLM, Triton, Inductor, uv and pip caches under `$SCRATCH/cache`, because `$HOME` doesn't support `flock` from compute nodes (jobs 60824576 and 60825842 failed on that). |
 | Rebuild the env | `bash setup/perlmutter_setup.sh` on a login node. It is idempotent and creates `$DBKV_DATA/{tpch,bird,traces,runs,logs}`, makes the venv, installs `requirements.txt` + `setup/requirements-gpu.txt`, and rewrites `setup/requirements.lock.txt` with `pip freeze`. `requirements-gpu.txt` doesn't pin vLLM. To get the exact stack, install from `setup/requirements.lock.txt` instead: vLLM 0.33.0, PyTorch 2.14.0, DuckDB 2.0.0, sqlglot 30.29.0, Python 3.11.7. |
 | Model (§2j, since Nov 15) | `DBKV_MODEL=Qwen/Qwen3-32B`. `bash setup/perlmutter_setup.sh --model` runs `hf download Qwen/Qwen3-32B --exclude "*.pth"` into `$HF_HOME` (~65 GB, BF16; run it in tmux; needs Aryan's approval). Served as BF16, non-thinking, temperature 0. Snapshot hash recorded in [PERLMUTTER.md](PERLMUTTER.md) once downloaded. |
 | vLLM server flags (§2j, full node) | Base, to be confirmed by the Phase 0 smoke test: `vllm serve Qwen/Qwen3-32B --tensor-parallel-size 4 --gpu-memory-utilization 0.9 --max-model-len 32768 --enable-prefix-caching --enable-prompt-tokens-details --enable-per-request-metrics --seed 0 --enable-auto-tool-choice --tool-call-parser hermes`. Option switches add `--scheduling-policy priority` (A(a), with the gateway), `--speculative-config '{"method": "suffix"}'` (A(b)), a W8A8 checkpoint (A(c)) and `--kv-cache-dtype fp8` (A(d)). The exact flags of each job are in its Slurm log. |
@@ -212,6 +212,123 @@ python results/figures.py      # raw data from $DBKV_RAW, else the CFS copy dbkv
 ```
 [results/README.md](../results/README.md#figures-what-figurespy-needs) says which figures can be rebuilt from `results/` alone.
 
+## Qwen3-32B experiments (PLAN §2j)
+
+Everything from Nov 15 on: Phases 0–2 (`results/p1_baseline.md`, `results/p2_summary.md`). One script runs every GPU cell, `slurm/node_p1.sbatch`.
+
+### 1. One-time setup (your own account)
+
+```bash
+git clone git@github.com:KilroyHere/dbkv.git && cd dbkv          # or work in a clone on CFS
+source setup/env.sh                                              # DBKV_REPO = this clone, DBKV_DATA = $SCRATCH/dbkv
+bash setup/perlmutter_setup.sh --model                           # venv + vLLM 0.33 + arctic-inference + our 3 plugins + Qwen3-32B (~65 GB; run in tmux)
+```
+
+- The setup script installs `arctic-inference==0.1.1` (needed for suffix decoding; built with GCC 13, see PERLMUTTER.md Nov 7) and our plugins `harness/vllm_{steplog,jointspec,taskevict}` (editable, inert unless switched on).
+- Check: `python -c "from importlib.metadata import entry_points as e; print(e(group='vllm.general_plugins'))"` lists `dbkv_jointspec` and `dbkv_taskevict`.
+
+### 2. Data
+
+- **DuckDB files:** `setup/dbkv-sbatch slurm/tpch_gen.sbatch` (TPC-H SF1/SF10), `setup/dbkv-sbatch slurm/tpch_sf100.sbatch` (SF100, ~20 min, 27 GiB), `setup/dbkv-sbatch slurm/tpcds_gen.sbatch` (TPC-DS SF1/SF10). These are CPU jobs that write to `$DBKV_DATA/{tpch,tpcds}/`.
+- **W3 workload**, either:
+  - **rebuild it** (5 min CPU, identical streams for the same seeds, but gold rows are computed on *your* files):
+    ```bash
+    srun -A m4999 -C cpu -q shared_interactive -c 32 --mem=80G -t 01:00:00 bash slurm/w3_build.sbatch
+    python harness/plancache/brief.py $DBKV_DATA/tpch/tpch_sf10.duckdb $DBKV_DATA/w3/brief_tpch_compact.txt   # in an srun
+    python harness/plancache/brief.py $DBKV_DATA/tpcds/tpcds_sf10.duckdb $DBKV_DATA/w3/brief_tpcds_compact.txt
+    ```
+  - **or copy Aryan's** from the team folder and rewrite the DuckDB paths inside the streams:
+    ```bash
+    rsync -a /global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/w3/ $DBKV_DATA/w3/
+    sed -i "s#/pscratch/sd/a/ap2568/dbkv#$DBKV_DATA#g" $DBKV_DATA/w3/streams/*.jsonl $DBKV_DATA/w3/bank/*.jsonl
+    ```
+    (`results/w3_SHA256SUMS` matches the files before this path rewrite; check it before running `sed` if you need to.)
+- **Option B's table:** `dbkv-data/goodput/b_train_s12.json` → `$DBKV_DATA/goodput/`. It is rebuilt by `harness/gateway/fit_goodput.py` (PLAN §2j-B lists the training jobs and seeds).
+
+### 3. Submitting
+
+```bash
+cd <repo root>
+setup/dbkv-sbatch [-q debug] --time=HH:MM:SS --job-name=NAME slurm/node_p1.sbatch CELL ...
+```
+
+- `setup/dbkv-sbatch` = sbatch from the repo root, with the log in `$DBKV_DATA/logs/NAME-JOBID.out`.
+- Outputs go to `$DBKV_DATA/runs/p1/JOBID/`:
+  - one directory per cell, with `tasks.jsonl`, `turns.jsonl`, `metrics_0.jsonl`, `summary.json`, and `gateway.jsonl` if any;
+  - `server_K.log` and `server_K_steps.jsonl` per vLLM start;
+  - `cells.tsv` and `servers.tsv`.
+- Knobs (env):
+  - `P1_SEED` (stream and load seed, default 0);
+  - `P1_STREAM` (default `w3_mix_s$P1_SEED`; option D uses `w3_h100_s*`);
+  - `P1_WARMUP` / `P1_MEASURE` / `P1_DRAIN` (60 / 300 / 180 s);
+  - `AGENT_TAG` (`agent-32b-v1`);
+  - `TASK_KV` (2,260 → K = pool / TASK_KV);
+  - `GP_TABLE`, `JS_BUDGET`, `JS_THETA`, `JS_MIN`, `TE_MODE`, `TE_PORT`.
+- `DRY_RUN=1 bash slurm/node_p1.sbatch CELL ...` on a login node checks the plan and stops at the GPU check.
+- **Cost:** a full node is 1 node-h per hour. `debug` QOS (≤ 30 min) usually starts within minutes; `regular` full-node jobs waited 30 min to 3 h in Nov 2026. Log every job in `$DBKV_DATA/logs/jobs.tsv` (AGENTS.md rules).
+
+**Cells** (run in order on one server; the prefix cache is reset between cells):
+- `server:CFG`: restart vLLM with `+`-joined switches:
+  - `fcfs` (stock), `prio` (`--scheduling-policy priority`);
+  - `suffix` (suffix decoding, K = 24) or `suffixN` (static K = N);
+  - `js` (option C), `te` (option E), `fp8`, `w8a8`.
+- `closed:C:N`: N tasks, C concurrent agents (light load).
+- `open:RATE`: open-loop Poisson load, tasks/min.
+- `gw:RATE:K|auto`: through the gateway with admission K and priority (option A(a)).
+- `gwx:RATE:SET`: gateway flag sets:
+  - `tl8`: static turn limit 8;
+  - `gp`: option B;
+  - `gpp`: B without forcing;
+  - `pt`: pass-through;
+  - `te`: pass-through + option E tags.
+- `openx:RATE:SET`: load-generator sets: `dbdef` (DuckDB default), `dbx` (option D), `dbobs` (D's classifier in observe mode).
+- `burst`, `restart:on|off`: synthetic burst and instrumentation on/off.
+
+**The exact runs behind each result** (seeds 0 / 1 / 2 as `P1_SEED`; arm order alternated by seed):
+
+| result | cells |
+|---|---|
+| Phase 1 sweep | `burst open:60 open:100` · `open:140 open:180` · `open:40 restart:off burst restart:on burst` · `open:20 open:30` (4 debug jobs) |
+| Phase 1 repeats | `closed:1:30 closed:4:60 open:40 open:60` |
+| A(a) | `server:fcfs open:40 open:60 open:140` + `server:prio gw:40:auto gw:60:auto gw:140:auto` |
+| A(b) (stock base) | `server:fcfs closed:1:30 open:40 open:60` + `server:fcfs+suffix closed:1:30 open:40 open:60` |
+| C | `server:fcfs+suffix open:60 open:40` + `server:fcfs+suffix16 …` + `server:fcfs+suffix8 …` + `server:fcfs+suffix+js …` |
+| B | `server:fcfs+suffix open:40 open:140` + `server:fcfs+suffix gwx:40:tl8 gwx:140:tl8` + `server:prio+suffix gwx:40:gp gwx:140:gp` |
+| E | `server:fcfs+suffix gwx:140:pt` + `server:fcfs+suffix+te gwx:140:te` (debug) |
+| D | `P1_STREAM=$DBKV_DATA/w3/streams/w3_h100_sN.jsonl`: `server:fcfs+suffix openx:40:dbdef` + `server:fcfs+suffix openx:40:dbx` (debug or regular 0:45) |
+
+Job ids, seeds and dates are in PLAN §2j-P1 … §2j-D and in `results/README.md`.
+
+### 4. Analysis
+
+```bash
+python harness/w3/analyze_p1.py $DBKV_DATA/runs/p1/<job> [<job> ...] --out results/<name>.json
+```
+
+- Per cell it reports p50/p95, throughput, accuracy, the LLM / DB / DB-queue time split, prefix-cache miss causes and step-log stats.
+- `servers.tsv` maps each cell to its server config.
+- Correct tasks/min (B), prefill per finished task (E) and paired per-task accuracy flips (A(b)) are short scripts over `tasks.jsonl` / `turns.jsonl`; their definitions are written into PLAN §2j-B / E / A.
+- Figure: `python results/fig_p1.py`.
+
+### 5. Adding a new option
+
+1. Make it a switch that is **off by default**:
+   - a server switch: an env var or flag set in `cfg_flags()` of `slurm/node_p1.sbatch`;
+   - a gateway flag set: a new case under `gwx`;
+   - a load-generator flag set: a new case under `openx`.
+2. Test it without a GPU: `harness/gateway/mock_vllm.py` stands in for vLLM; vLLM plugins can be unit-tested on a CPU node (see `harness/vllm_jointspec/tests`).
+3. **Pre-register** the arms, cells and prediction in PLAN before the first job, then run **one paired job**: base arm and option arm, **each on a fresh server**.
+4. Analyse with `analyze_p1.py`; record the verdict and the adoption decision in PLAN.
+
+### 6. Gotchas we hit
+
+- **The suffix-decoding tree persists between cells on one server** (`reset_prefix_cache` does not clear it). Later cells get faster, so give every arm its own `server:` restart and keep cell order the same across arms. This biased B's turn-limit arm in job 61476626.
+- **FP8 KV + suffix decoding crashes at start** on A100 with vLLM 0.33 (FlashInfer spec-decode path).
+- **`step_ms` in the step log is launch time** under async scheduling, not GPU time. Use token counts and vLLM's throughput log.
+- **Accuracy under load flips both ways** with any change to batching (nondeterministic numerics). Judge accuracy with paired per-task flips over several hundred tasks, not one window's percentage.
+- **A few load-independent long tasks** (SQL timeouts on SF100, 15-turn runaway generation) dominate p95 and can be unfinished at any rate. Below capacity, compare medians and paired counts.
+- **The debug QOS limit is 30 min:** a two-arm 140/min job barely fits (E seed 1 timed out).
+
 ## What a teammate can and cannot read
 
 - **Can read:** this repo on CFS (through ACLs) and on GitHub. That covers all of `results/`, the code, the job scripts and the docs.
@@ -236,4 +353,10 @@ To rerun experiments rather than redraw figures, a teammate would also need:
 - for G2: `tpch/` (30 G) and `tpcds/` (3.2 G), both regenerable with the gen scripts
 - their own env and model download
 
-**Copied Nov 6 (Aryan's decision):** exactly these files, 144 of them, 35 MB, keeping the `runs/` layout, are at **`/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/`**. That directory is readable by group m4999 and by the team ACLs (ac3354, sj945, ut25). `results/figures.py` reads raw data from `$DBKV_RAW` if set, else this CFS copy, else `$SCRATCH/dbkv/runs`. **All 12 figures rebuild from the CFS copy alone** (checked in srun job 60921122 with `SCRATCH` unset: every PNG byte-identical to the committed one). Nothing else was copied.
+**Copied Nov 6 (Aryan's decision):** exactly these files, 144 of them, 35 MB, keeping the `runs/` layout, are at **`/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/`**. That directory is readable by group m4999 and by the team ACLs (ac3354, sj945, ut25). `results/figures.py` reads raw data from `$DBKV_RAW` if set, else this CFS copy, else `$SCRATCH/dbkv/runs`. **All 12 figures rebuild from the CFS copy alone** (checked in srun job 60921122 with `SCRATCH` unset: every PNG byte-identical to the committed one). Nothing else was copied then.
+
+**Copied Nov 18 (Qwen3-32B work, Aryan's decision), to the same team folder:**
+- `dbkv-data/runs-32b/`: every Phase 0–2 GPU job directory, `<job>/<cell>/...` (610 MB). Rebuilds every `results/p1_*` / `p2_*` JSON with `harness/w3/analyze_p1.py`.
+- `dbkv-data/w3/`: W3 bank, streams and briefs (129 MB). The streams hold Aryan's DuckDB paths; see "Qwen3-32B experiments → Data" for the one-line path rewrite.
+- `dbkv-data/goodput/`: option B's tables.
+- Not copied: the model (download it), the env (rebuild it) and the DuckDB files (regenerate them).

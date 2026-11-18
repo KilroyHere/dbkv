@@ -1,0 +1,9 @@
+#!/bin/bash
+# Submit a dbkv job from the repo root with its log in $DBKV_DATA/logs/<job-name>-<job-id>.out.
+#   setup/dbkv-sbatch --time=00:45:00 --job-name=p2_X slurm/node_p1.sbatch CELL...
+# (Phase 1-2 scripts carry no hard-coded --output; plain sbatch also works and writes slurm-<id>.out here.)
+set -e
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+source setup/env.sh
+mkdir -p "$DBKV_DATA/logs"
+exec sbatch --output="$DBKV_DATA/logs/%x-%j.out" "$@"

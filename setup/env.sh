@@ -2,7 +2,11 @@
 #   source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
 # Single source of truth for paths; perlmutter_setup.sh and job scripts use it.
 
-export DBKV_REPO=/global/cfs/cdirs/m4999/team19/ap2568/dbkv
+# The repo is the one this file lives in (each user's own clone); Aryan's clone is the fallback.
+_dbkv_here=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." 2>/dev/null && pwd)
+if [[ -n $_dbkv_here && -f $_dbkv_here/setup/env.sh ]]; then export DBKV_REPO=$_dbkv_here
+else export DBKV_REPO=/global/cfs/cdirs/m4999/team19/ap2568/dbkv; fi
+unset _dbkv_here
 export DBKV_DATA=$SCRATCH/dbkv                                   # DuckDB files, traces, raw results
 export DBKV_ENV=$SCRATCH/envs/dbkv-env                          # Python venv: CPU tools + stock vLLM
 # (not /global/common/software/m4999: that quota is shared by the whole class and was full on 2026-11-04)

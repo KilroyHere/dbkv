@@ -17,13 +17,22 @@ dbkv is Aryan Patel's CS 5470 project, done solo, on NERSC Perlmutter.
 2. **Where time goes:** in the real agent's task time, LLM decode is 78–90% (89% in the explore arm) and the database is 3.6% (`results/t2_summary.md`, `results/d2_step5.md`).
 3. **KV memory limit:** `harness/kv_limit.py` predicted 32 / 16 / 6.5 concurrent sessions at 4k / 8k / 20k context, and the measured cliff is right there (`results/g3_summary.md`).
 4. **Gateway:** at 250 tasks/min, admission + task-start priority ("both") cuts p95 by 82% (144 s vs stock ≥786 s) and gives 1.9× throughput (199 vs 105/min). It beats the best vLLM request cap (`--max-num-seqs 64`) by p95 −67% (`results/phase2_gateway.md`, `results/a3_reqcap.md`).
-5. **Next phase (since Nov 15; PLAN §2j): improving model serving for data agents on one node.** This replaces the Nov 6 "paused at midpoint" state; Part C (§2g) will not be run.
-   - **Setup:** Qwen/Qwen3-32B (dense, BF16, non-thinking), one vLLM instance with `--tensor-parallel-size 4` on one full GPU node (4 × A100-40GB).
-   - **Workload (W3):** our SQL agent on DuckDB analytics data, TPC-H SF10/SF100 and TPC-DS SF10, with executable gold SQL (built from the W2 templates).
-   - **Process:** no go/no-go gates. Phase 0 setup → Phase 1 naive baseline → Phase 2 options built in order **A → C → B → E → D**, each an on/off switch, each measured as the added gain on the best system so far (3 repeats, same-job controls). A prediction goes into PLAN §2j before each step. Accuracy is reported only as a check.
-   - **Out of scope:** accuracy work, GPU SQL engines.
-   - **Where it stands:** see the PLAN Status table (Phase 0 rows).
-6. Everything in items 1–4 is the **8B / 1-GPU / BIRD** record; its numbers do not carry over to 32B.
+5. **Next phase, Phases 0–2 DONE (Nov 15–18; PLAN §2j, `results/p2_summary.md`): improving model serving for data agents on one node.**
+   - **Setup:** Qwen/Qwen3-32B (dense, BF16, non-thinking), one vLLM 0.33 instance with `--tensor-parallel-size 4` on one full GPU node (4 × A100-40GB).
+   - **Workload W3:** our DuckDB SQL agent (`agent-32b-v1`) on TPC-H SF10/SF100 and TPC-DS SF10, with executable gold SQL (`workload-w3-v1`).
+   - **Baseline (Phase 1):** stock vLLM peaks at **~55 tasks/min** and degrades past it (36–41/min at 140–180/min). The GPU (decode + prefill), not KV memory, is the limit below ~100/min (`results/p1_baseline.md`).
+   - **Final system (tag `system-32b-final`): stock vLLM + suffix decoding + EXPLAIN query scheduling (D).**
+     - Suffix decoding: light-load p50 0.6×, moderate-load p50 about halved, no overload collapse.
+     - D on SF100: p50 −63%, throughput +33%.
+   - **Not adopted** (each with its measured reason in `results/p2_summary.md`):
+     - gateway admission + priority: more throughput at overload, but not more correct answers;
+     - goodput gateway B;
+     - joint speculation C;
+     - task-aware eviction E.
+     A(c) INT8 was skipped (no checkpoint). A(d) FP8 KV is not runnable with suffix on A100.
+   - **Phase 3** (headline naive vs final at 4–6 loads, ablation, Qwen3-30B-A3B check) is **not started**: it needs Aryan's go and budget (`iris` Nov 18: 33.2 of 45 GPU node-h used).
+   - **To run anything:** see [docs/REPRODUCE.md, "Qwen3-32B experiments"](docs/REPRODUCE.md#qwen3-32b-experiments-plan-2j) (one script, `slurm/node_p1.sbatch`, with named arms and cells).
+6. Items 1–4 are the **8B / 1-GPU / BIRD** record; their numbers do not carry over to 32B.
 
 ## Relation to Team 19's project
 
@@ -59,7 +68,7 @@ From a GitHub clone (github.com/KilroyHere/dbkv; a normal `git clone` includes t
 - **Budget:** check GPU budget with `iris` before each GPU phase, and tell Aryan the estimate first. **A full GPU node (regular QOS, used from §2j on) costs 1 node-h per hour of wall time**; a 1-GPU `shared` job costs ¼ node-h per hour. The GPU cap is 45 node-h per user (30.8 left on Nov 15), the CPU cap 10. Full-node job templates: `slurm/node_*.sbatch` (added in Phase 0 (c)).
 - **Pre-register before running.** Write the rules and predictions into PLAN.md before any data exists. Never edit them afterwards; add observed numbers next to them.
 - **Prefer same-job controls.** Nodes vary by up to 16% in speed, so compare arms inside one job where possible.
-- **Frozen tags:** `agent-frozen-v1` (commit `220001e`), `system-frozen-v1` (`0002aae`) and `agent-duckdb-v1` (the W port, Nov 7) belong to the 8B record. **New (§2j):** `agent-32b-v1` (the agent ported to Qwen3-32B and W3; set after the Phase 0 smoke test), `workload-w3-v1` (W3 templates, gold SQL and stream generator), and `system-32b-<step>` for the best system after each Phase 2 step (e.g. `system-32b-A`). Experiment jobs run files exported from the tag, not the working tree.
+- **Frozen tags:** `agent-frozen-v1` (commit `220001e`), `system-frozen-v1` (`0002aae`) and `agent-duckdb-v1` (the W port, Nov 7) belong to the 8B record. **32B (§2j):** `agent-32b-v1` (agent on Qwen3-32B / W3), `workload-w3-v1` (W3 builder), `system-32b-base` (Phase 1 naive baseline), `system-32b-A` (stock + suffix), `system-32b-final` (stock + suffix + D). The agent is exported from its tag at job start; the harness (gateway, load generator) is snapshotted at job start, so editing the repo never changes a running job.
 - **Where things go:** code in this repo (CFS); data, traces, run outputs and logs in `$SCRATCH/dbkv`; only small summaries in `results/`.
 - **Git:** commit and push after each finished step. The remote is github.com/KilroyHere/dbkv, through the `github-dbkv` deploy key.
 - **Notify Aryan** with `dbkv-notify "<subject>"` (body on stdin), only for a job ending or failing, a step's result, or being blocked on his approval. It mails `ap2568@nersc.gov`; only `nersc.gov` and `lbl.gov` recipients work from Perlmutter.
@@ -75,15 +84,17 @@ From a GitHub clone (github.com/KilroyHere/dbkv; a normal `git clone` includes t
 | Path | What |
 |---|---|
 | `harness/agent/` | The frozen ReAct SQL agent on BIRD (`run_bird.py`, `tools.py`) and its analysis |
-| `harness/agent_duckdb/` | The agent on DuckDB (W, Nov 7); ported to Qwen3-32B and W3 in §2j Phase 0 |
+| `harness/agent_duckdb/` | The agent on DuckDB: W (8B, Nov 7) and W3 on Qwen3-32B (tag `agent-32b-v1`) |
+| `harness/w3/` | W3 builder, open-loop load generator, Phase 1–2 analysis, smoke test, burst probe, option D query scheduler |
+| `harness/vllm_steplog/`, `vllm_jointspec/`, `vllm_taskevict/` | Our vLLM plugins: per-step engine log; option C scheduler; option E eviction tiers (inert unless switched on) |
 | `harness/plancache/` | W / W2 templates and stream generators; the starting point of W3 |
 | `harness/brief/` | Schema-brief generator (full, compact, lexical, llm, oracle) and D2 analyses |
-| `harness/gateway/` | Gateway (admission, priority, routing), open-loop load generator, mock vLLM, summarizer |
+| `harness/gateway/` | Gateway (admission, priority, routing, option B goodput, option E task tags), 8B load generator, mock vLLM, summarizer |
 | `harness/` | G3 replayer, KV-limit calculator, D5 probe |
 | `sim/` | KV simulator (G1, closed) and the open-loop capacity simulator |
 | `calib/` | EXPLAIN-vs-runtime calibration (G2, closed direction) |
 | `engine/` | Notes on the Continuum fork (cited baseline only) |
-| `slurm/` | Job scripts |
+| `slurm/` | Job scripts. 32B: `node_p1.sbatch` (all Phase 1–2 cells), `node_lib.sh`, `node_smoke.sbatch`, `node_serve.sbatch`, `w3_build.sbatch` |
 | `setup/` | `env.sh`, `perlmutter_setup.sh`, `dbkv-claude`, `dbkv-notify`, `job-nh` |
 | `results/` | Small summaries and figures (`figures.py`) |
 | `docs/` | OVERVIEW, PLAN (lab notebook), PERLMUTTER (environment log), EXPERT (parked idea), prior-art notes |

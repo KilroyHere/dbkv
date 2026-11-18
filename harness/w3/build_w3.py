@@ -41,7 +41,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "plancache"))
 import templates as T  # noqa: E402
 from make_streams_w2 import load_pool, bench_of  # noqa: E402
 
-DATA = os.environ.get("DBKV_DATA", "/pscratch/sd/a/ap2568/dbkv")
+DATA = os.environ.get("DBKV_DATA", os.path.expandvars("$SCRATCH/dbkv"))
 OUT = os.path.join(DATA, "w3")
 TENANTS = {"tpch_sf10": os.path.join(DATA, "tpch", "tpch_sf10.duckdb"),
            "tpch_sf100": os.path.join(DATA, "tpch", "tpch_sf100.duckdb"),
