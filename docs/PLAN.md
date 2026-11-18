@@ -1220,6 +1220,7 @@ The gateway tags each request with its task and signals task end to the engine (
 - *Verdicts: plan prediction (≥ 10% fewer prefill) **NOT MET**; E-1 half met (base 23% in range, but not halved); E-2 MET; E-3 NOT MET (accuracy −2.2); E-4 MET.*
 - ***Not adopted*** *(no throughput or p95 gain). Formally borderline (accuracy moved > 1.5 points), so a second run is pending Aryan's call.*
 - *The mechanism works as designed, but at this load fewer evictions do not turn into speed. The GPU is compute-bound, and the saved prefill (~8%) is small next to decode.*
+- *Aryan (Nov 17): run the second run (seed 1), job 61515851, E arm first (order reversed), same cells. Adoption judged on seeds 0 + 1.*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
