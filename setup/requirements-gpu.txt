@@ -1,4 +1,4 @@
 # Stock vLLM for G3 and the baselines. Exact versions land in requirements.lock.txt.
 # The Continuum fork (vLLM 0.10.2) gets its own env later; see engine/README.md.
-vllm
+vllm==0.33.0           # the 32B work (PLAN 2j) and our plugins are built against 0.33.0; torch comes with it (2.14.0)
 huggingface_hub[cli]

@@ -20,7 +20,7 @@ CS 5470 (Aryan Patel). Many tool-using SQL agents share one or a few GPUs. Every
 
 1. **Baseline.** Stock vLLM peaks at ~55 agent tasks/min and degrades past it; the GPU, not KV memory, is the limit. `results/p1_baseline.md`, `results/fig_p1_load_curve.png`.
 2. **Suffix decoding.** Light-load p50 0.59–0.63×; at 40/min p50 −28 to −55%. Accuracy unchanged (paired confirmatory test). `results/p2_summary.md`.
-3. **EXPLAIN query scheduling.** With the SF100-only stream at 40/min: p50 216 → 49 s and 85 → 63 s, throughput +33%. `results/p2_D.json`.
+3. **EXPLAIN query scheduling.** With the SF100-only stream at 40/min: p50 216 → 49 s and 85 → 63 s (−77% / −26%); throughput 14.2 → 27.0 and 24.0 → 23.8 per min (mean +33%, but only on one seed). `results/p2_D.json`.
 4. **Throughput ≠ correct throughput.** Gateway admission gives 1.36× throughput at overload, but the same number of correct answers per minute: stock overload implicitly finishes the short, likely-correct tasks.
 
 ## Headline results (8B record, Nov 4–9)

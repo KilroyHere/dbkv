@@ -39,8 +39,8 @@ for pkg in vllm_steplog vllm_jointspec vllm_taskevict; do
   python -m pip install -q --no-deps --no-build-isolation -e "$DBKV_REPO/harness/$pkg"
 done
 
-echo "== 3. Record exact versions"
-python -m pip freeze > "$HERE/requirements.lock.txt"
+echo "== 3. Exact versions (committed lock: setup/requirements.lock.txt; set DBKV_FREEZE=1 to rewrite it)"
+if [[ ${DBKV_FREEZE:-0} == 1 ]]; then python -m pip freeze > "$HERE/requirements.lock.txt"; fi
 python - <<'EOF'
 import sys, duckdb, vllm, torch
 print(f"python {sys.version.split()[0]} | duckdb {duckdb.__version__} | vllm {vllm.__version__} | torch {torch.__version__}")

@@ -16,7 +16,7 @@ Job arguments below were taken from the first lines of each job's Slurm log (`$S
 
 | What | Where / how |
 |---|---|
-| Paths, module, caches | `source setup/env.sh` from your clone. It sets `DBKV_REPO` (the clone `env.sh` lives in; Aryan's clone on CFS is the fallback), `DBKV_DATA=$SCRATCH/dbkv`, `DBKV_ENV=$SCRATCH/envs/dbkv-env` (venv, activated if present), `HF_HOME=$SCRATCH/huggingface`, `DBKV_MODEL=Qwen/Qwen3-8B`, and loads module `python/3.11-24.1.0`. It also puts the FlashInfer, vLLM, Triton, Inductor, uv and pip caches under `$SCRATCH/cache`, because `$HOME` doesn't support `flock` from compute nodes (jobs 60824576 and 60825842 failed on that). |
+| Paths, module, caches | `source setup/env.sh` from your clone. It sets `DBKV_REPO` (the clone `env.sh` lives in; Aryan's clone on CFS is the fallback), `DBKV_DATA=$SCRATCH/dbkv`, `DBKV_ENV=$SCRATCH/envs/dbkv-env` (venv, activated if present), `HF_HOME=$SCRATCH/huggingface`, `DBKV_MODEL=Qwen/Qwen3-32B` (and `DBKV_MODEL_8B=Qwen/Qwen3-8B` for the 8B scripts), and loads module `python/3.11-24.1.0`. It also puts the FlashInfer, vLLM, Triton, Inductor, uv and pip caches under `$SCRATCH/cache`, because `$HOME` doesn't support `flock` from compute nodes (jobs 60824576 and 60825842 failed on that). |
 | Rebuild the env | `bash setup/perlmutter_setup.sh` on a login node. It is idempotent and creates `$DBKV_DATA/{tpch,bird,traces,runs,logs}`, makes the venv, installs `requirements.txt` + `setup/requirements-gpu.txt`, and rewrites `setup/requirements.lock.txt` with `pip freeze`. `requirements-gpu.txt` doesn't pin vLLM. To get the exact stack, install from `setup/requirements.lock.txt` instead: vLLM 0.33.0, PyTorch 2.14.0, DuckDB 2.0.0, sqlglot 30.29.0, Python 3.11.7. |
 | Model (§2j, since Nov 15) | `DBKV_MODEL=Qwen/Qwen3-32B`. `bash setup/perlmutter_setup.sh --model` runs `hf download Qwen/Qwen3-32B --exclude "*.pth"` into `$HF_HOME` (~65 GB, BF16; run it in tmux; needs Aryan's approval). Served as BF16, non-thinking, temperature 0. Snapshot hash recorded in [PERLMUTTER.md](PERLMUTTER.md) once downloaded. |
 | vLLM server flags (§2j, full node) | Base, to be confirmed by the Phase 0 smoke test: `vllm serve Qwen/Qwen3-32B --tensor-parallel-size 4 --gpu-memory-utilization 0.9 --max-model-len 32768 --enable-prefix-caching --enable-prompt-tokens-details --enable-per-request-metrics --seed 0 --enable-auto-tool-choice --tool-call-parser hermes`. Option switches add `--scheduling-policy priority` (A(a), with the gateway), `--speculative-config '{"method": "suffix"}'` (A(b)), a W8A8 checkpoint (A(c)) and `--kv-cache-dtype fp8` (A(d)). The exact flags of each job are in its Slurm log. |
@@ -44,7 +44,7 @@ Everything is under `$DBKV_DATA` = `/pscratch/sd/a/ap2568/dbkv` for Aryan.
 
 ## Git tags
 
-- **§2j tags (planned, Nov 15):** `agent-32b-v1` (the DuckDB agent ported to Qwen3-32B and W3, set after the Phase 0 smoke test), `workload-w3-v1` (W3 templates, gold SQL and stream generator), `system-32b-<step>` (best system after each Phase 2 step). `agent-duckdb-v1` (Nov 7) is the W port for 8B.
+- **§2j tags (32B):** `agent-32b-v1` (DuckDB agent on Qwen3-32B / W3), `workload-w3-v1` (W3 builder), `system-32b-base` (Phase 1 naive baseline), `system-32b-A` (stock + suffix), `system-32b-final` (stock + suffix + D). `git show <tag>` gives the commit. `agent-duckdb-v1` (Nov 7) is the W port for 8B.
 
 - **`agent-frozen-v1`** = `220001e`: the frozen ReAct agent (`harness/agent/run_bird.py`, `tools.py`). Qwen3-8B non-thinking, temperature 0, max_tokens 1024, ≤15 turns, final-turn answer. Check: 150 tasks, 0% no-SQL, 46.0% accuracy (job 60872839).
 - **`system-frozen-v1`** = `0002aae`: the final system. Gateway files `harness/gateway/{gateway,loadgen,summarize}.py` and `gw_lib.sh` at this commit, plus the agent above and the frozen briefs.
@@ -219,9 +219,10 @@ Everything from Nov 15 on: Phases 0–2 (`results/p1_baseline.md`, `results/p2_s
 ### 1. One-time setup (your own account)
 
 ```bash
-git clone git@github.com:KilroyHere/dbkv.git && cd dbkv          # or work in a clone on CFS
+git clone https://github.com/KilroyHere/dbkv.git && cd dbkv          # or work in a clone on CFS
 source setup/env.sh                                              # DBKV_REPO = this clone, DBKV_DATA = $SCRATCH/dbkv
-bash setup/perlmutter_setup.sh --model                           # venv + vLLM 0.33 + arctic-inference + our 3 plugins + Qwen3-32B (~65 GB; run in tmux)
+bash setup/perlmutter_setup.sh --model                           # venv + vLLM 0.33.0 (pinned) + arctic-inference + our 3 plugins + Qwen3-32B (~65 GB; run in tmux)
+# exact stack of every result: pip install -r setup/requirements.lock.txt (the setup script no longer rewrites it unless DBKV_FREEZE=1)
 ```
 
 - The setup script installs `arctic-inference==0.1.1` (needed for suffix decoding; built with GCC 13, see PERLMUTTER.md Nov 7) and our plugins `harness/vllm_{steplog,jointspec,taskevict}` (editable, inert unless switched on).
@@ -231,7 +232,7 @@ bash setup/perlmutter_setup.sh --model                           # venv + vLLM 0
 
 - **DuckDB files:** `setup/dbkv-sbatch slurm/tpch_gen.sbatch` (TPC-H SF1/SF10), `setup/dbkv-sbatch slurm/tpch_sf100.sbatch` (SF100, ~20 min, 27 GiB), `setup/dbkv-sbatch slurm/tpcds_gen.sbatch` (TPC-DS SF1/SF10). These are CPU jobs that write to `$DBKV_DATA/{tpch,tpcds}/`.
 - **W3 workload**, either:
-  - **rebuild it** (5 min CPU, identical streams for the same seeds, but gold rows are computed on *your* files):
+  - **rebuild it** (5 min CPU; `w3_build.sbatch` writes 3000-task streams, the same task sequence for the same seeds, with gold rows computed on *your* files; 140/min cells need > 1100 tasks):
     ```bash
     srun -A m4999 -C cpu -q shared_interactive -c 32 --mem=80G -t 01:00:00 bash slurm/w3_build.sbatch
     python harness/plancache/brief.py $DBKV_DATA/tpch/tpch_sf10.duckdb $DBKV_DATA/w3/brief_tpch_compact.txt   # in an srun
@@ -312,7 +313,7 @@ python harness/w3/analyze_p1.py $DBKV_DATA/runs/p1/<job> [<job> ...] --out resul
 
 ### 5. Adding a new option
 
-1. Make it a switch that is **off by default**:
+1. Make it a switch that is **off by default**. Add its name to the plan-check regex too (in `node_p1.sbatch`: `server)` switch list, `gwx)` / `openx)` set lists), or the job stops with "bad switch" / "bad cell":
    - a server switch: an env var or flag set in `cfg_flags()` of `slurm/node_p1.sbatch`;
    - a gateway flag set: a new case under `gwx`;
    - a load-generator flag set: a new case under `openx`.
@@ -353,7 +354,7 @@ To rerun experiments rather than redraw figures, a teammate would also need:
 - for G2: `tpch/` (30 G) and `tpcds/` (3.2 G), both regenerable with the gen scripts
 - their own env and model download
 
-**Copied Nov 6 (Aryan's decision):** exactly these files, 144 of them, 35 MB, keeping the `runs/` layout, are at **`/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/`**. That directory is readable by group m4999 and by the team ACLs (ac3354, sj945, ut25). `results/figures.py` reads raw data from `$DBKV_RAW` if set, else this CFS copy, else `$SCRATCH/dbkv/runs`. **All 12 figures rebuild from the CFS copy alone** (checked in srun job 60921122 with `SCRATCH` unset: every PNG byte-identical to the committed one). Nothing else was copied then.
+**Copied Nov 6 (Aryan's decision):** exactly these files, 144 of them, 35 MB, keeping the `runs/` layout, are at **`/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs/`**. That directory is readable only through named ACLs (ac3354, sj945, ut25 have rwx); group m4999 and others have no access, so a new member needs Aryan to add an ACL entry (`setfacl -R -m u:<user>:rx` and a matching default ACL). `results/figures.py` reads raw data from `$DBKV_RAW` if set, else this CFS copy, else `$SCRATCH/dbkv/runs`. **All 12 figures rebuild from the CFS copy alone** (checked in srun job 60921122 with `SCRATCH` unset: every PNG byte-identical to the committed one). Nothing else was copied then.
 
 **Copied Nov 18 (Qwen3-32B work, Aryan's decision), to the same team folder:**
 - `dbkv-data/runs-32b/`: every Phase 0–2 GPU job directory, `<job>/<cell>/...` (610 MB). Rebuilds every `results/p1_*` / `p2_*` JSON with `harness/w3/analyze_p1.py`.

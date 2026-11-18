@@ -23,7 +23,7 @@ dbkv is Aryan Patel's CS 5470 project, done solo, on NERSC Perlmutter.
    - **Baseline (Phase 1):** stock vLLM peaks at **~55 tasks/min** and degrades past it (36–41/min at 140–180/min). The GPU (decode + prefill), not KV memory, is the limit below ~100/min (`results/p1_baseline.md`).
    - **Final system (tag `system-32b-final`): stock vLLM + suffix decoding + EXPLAIN query scheduling (D).**
      - Suffix decoding: light-load p50 0.6×, moderate-load p50 about halved, no overload collapse.
-     - D on SF100: p50 −63%, throughput +33%.
+     - D on SF100 (2 seeds, means): p50 −63% (seed 0 −77%, seed 1 −26%), throughput +33% (+90% and −1%). D cuts the median reliably; its throughput gain was not on both seeds.
    - **Not adopted** (each with its measured reason in `results/p2_summary.md`):
      - gateway admission + priority: more throughput at overload, but not more correct answers;
      - goodput gateway B;
@@ -56,7 +56,14 @@ From a GitHub clone (github.com/KilroyHere/dbkv; a normal `git clone` includes t
 
 **To get Perlmutter access:**
 1. Request a NERSC account and to be added to project **m4999** (CS 5470), through NERSC Iris; ask the course staff or the project PI.
-2. Once you're in, the repo is at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv`, and the raw files the figures need are at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/runs`. Both are readable by the team ACLs (ac3354, sj945, ut25). `results/figures.py` uses the copy automatically, and all 12 figures rebuild from it.
+2. Once you're in, the repo is at `/global/cfs/cdirs/m4999/team19/ap2568/dbkv`. The team-readable data is in `/global/cfs/cdirs/m4999/team19/ap2568/dbkv-data/`:
+   - `runs/`: the 8B figure inputs; `results/figures.py` uses them automatically, and all 12 figures rebuild from them;
+   - `runs-32b/`: every Qwen3-32B job;
+   - `w3/`: the W3 workload;
+   - `goodput/`: option B's table;
+   - `logs/`: the job log `jobs.tsv` and the Slurm logs of the 32B jobs.
+
+   **Access is by named ACL only** (ac3354, sj945, ut25; the m4999 group itself has none). Anyone else asks Aryan to add them, or clones from GitHub (code and `results/` only).
 3. Everything else is in Aryan's `$SCRATCH`, which only he can read: BIRD, briefs, other run outputs, the model cache, the envs. Your own `$SCRATCH` and `setup/perlmutter_setup.sh` let you rebuild them ([docs/REPRODUCE.md](docs/REPRODUCE.md)).
 
 ## Rules

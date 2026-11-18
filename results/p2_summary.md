@@ -49,4 +49,4 @@
 - `p2_Ab_stock.json`: the A(b) re-run on stock.
 - `p2_C.json`, `p2_B.json`, `p2_E.json`, `p2_D.json`.
 
-Jobs and node-h are in `$SCRATCH/dbkv/logs/jobs.tsv`; arm-level tables are in PLAN §2j-A … §2j-D.
+Jobs and node-h are in `jobs.tsv` (Aryan's `$SCRATCH/dbkv/logs/`, copy in `dbkv-data/logs/`); Slurm logs of the 32B jobs are in `dbkv-data/logs/`; arm-level tables are in PLAN §2j-A … §2j-D.

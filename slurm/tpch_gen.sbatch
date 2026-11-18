@@ -10,9 +10,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32          # 32 logical CPUs = 16 physical cores (~64 GB RAM in shared)
 #SBATCH --time=01:00:00
-#SBATCH --output=/pscratch/sd/a/ap2568/dbkv/logs/%x-%j.out
 set -euo pipefail
-source /global/cfs/cdirs/m4999/team19/ap2568/dbkv/setup/env.sh
+source "${SLURM_SUBMIT_DIR:-$PWD}/setup/env.sh" || { echo "submit from the repo root"; exit 1; }
 
 OUT=$DBKV_DATA/tpch
 mkdir -p "$OUT" "$DBKV_DATA/tmp"
