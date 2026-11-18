@@ -1178,6 +1178,20 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 
 *Amendment for seed 1 (before its data): TL8 gets its own fresh server: `server:fcfs+suffix open:40 open:140 server:fcfs+suffix gwx:40:tl8 gwx:140:tl8 server:prio+suffix gwx:40:gp gwx:140:gp`. Adoption is judged on seeds 0 + 1 (mean correct/min at 140 vs base ≥ +5%; accuracy at 40 ≥ −2 points).*
 
+*Observed, B seed 1 (job 61490048, 1.04 node-h; TL8 on its own server) and seeds 0 + 1 together:*
+
+| arm | correct/min at 140 (s0 / s1, mean) | window accuracy at 140 | forced at 140 | accuracy at 40 (mean) |
+|---|---|---|---|---|
+| base (stock + suffix) | 18.0 / 19.6, **18.8** | 15.5% | 0 | 24.6% |
+| TL8 | 16.6 / 19.0, 17.8 | 15.4% | 100 / 134 | 24.9% |
+| B (goodput) | 17.0 / 16.6, **16.8** | 15.2% | 230 / 151 | 25.7% |
+
+- *B ÷ TL8 = 0.94 (B-1 band 0.95–1.15: NOT MET; plan ≥ 1.15: **NOT MET**).*
+- *B vs base: **−10.6%** correct/min, so **NOT ADOPTED**.*
+- *B-2 MET (accuracy at 40 +1.1 points).*
+- *B throughput at 140 is 64.8 / 72.2 per min (base 53.0 / ~53), but the forced finishes are mostly wrong.*
+- *Lesson: the value table ranks tasks well (held-out AUC 0.73), but forcing the lowest-value tasks to answer turns hopeless tasks into wrong answers rather than freeing capacity for right ones. At 140/min the queue is so long that the freed slots go to new tasks that mostly time out anyway.*
+
 #### 2j-E. Option E: task-aware eviction (pre-registered Tue Nov 17 2026, before any E job)
 
 *Do not edit; add observations below. Seen before writing: options A, C, and B seed 0. Base = best system = stock vLLM (FCFS) + suffix.*
