@@ -1,0 +1,106 @@
+[
+ {
+  "job": "61505076",
+  "cells": {
+   "01_gwx_140_pt": {
+    "server": 1,
+    "rc": 0,
+    "wall_s": 614.0,
+    "steplog": true,
+    "kind": "open",
+    "rate": 140.0,
+    "n_arrivals": 810,
+    "n_measured": 686,
+    "n_incomplete": 414,
+    "p50_s": 217.474,
+    "p95_s": 375.542,
+    "throughput_per_min": 52.8,
+    "throughput_measured_arrivals_per_min": 54.4,
+    "accuracy": 0.1603,
+    "turns_mean": 4.85,
+    "in_flight_max": 488,
+    "llm_share": 0.2735,
+    "db_share": 0.0521,
+    "db_queue_share": 0.6744,
+    "miss": {
+     "prefix_hit": 0.9295,
+     "uncached_tokens": 1273644,
+     "cold_share": 0.0563,
+     "new_share": 0.5046,
+     "evicted_share": 0.4274,
+     "rerender_share": 0.1526,
+     "evicted_proper_share": 0.2341,
+     "largest": "new"
+    },
+    "steps": {
+     "n_steps": 4191,
+     "sum_step_s": 530.5,
+     "ctx_tokens": 1540763,
+     "gen_tokens": 697670,
+     "prefill_step_share": 0.6768,
+     "prefill_token_weighted_share": 0.4934,
+     "preempted": 0,
+     "evictions_sampled": 1047,
+     "kv_usage_peak": 0.4338,
+     "running_mean": 24.6,
+     "waiting_mean": 1.1,
+     "decode_step_ms_p50": 70.22
+    },
+    "kv_per_task": 269,
+    "K": 1124
+   },
+   "03_gwx_140_te": {
+    "server": 2,
+    "rc": 0,
+    "wall_s": 607.2,
+    "steplog": true,
+    "kind": "open",
+    "rate": 140.0,
+    "n_arrivals": 810,
+    "n_measured": 686,
+    "n_incomplete": 426,
+    "p50_s": 222.801,
+    "p95_s": 377.019,
+    "throughput_per_min": 52.2,
+    "throughput_measured_arrivals_per_min": 52.0,
+    "accuracy": 0.1385,
+    "turns_mean": 4.93,
+    "in_flight_max": 496,
+    "llm_share": 0.3468,
+    "db_share": 0.0616,
+    "db_queue_share": 0.5916,
+    "miss": {
+     "prefix_hit": 0.9349,
+     "uncached_tokens": 1165588,
+     "cold_share": 0.0613,
+     "new_share": 0.5373,
+     "evicted_share": 0.3875,
+     "rerender_share": 0.1949,
+     "evicted_proper_share": 0.1671,
+     "largest": "new"
+    },
+    "steps": {
+     "n_steps": 3696,
+     "sum_step_s": 531.9,
+     "ctx_tokens": 1425122,
+     "gen_tokens": 693960,
+     "prefill_step_share": 0.7074,
+     "prefill_token_weighted_share": 0.5076,
+     "preempted": 0,
+     "evictions_sampled": 977,
+     "kv_usage_peak": 0.5002,
+     "running_mean": 27.7,
+     "waiting_mean": 2.3,
+     "decode_step_ms_p50": 77.01
+    },
+    "kv_per_task": 305,
+    "K": 991
+   }
+  },
+  "kv_pools": {
+   "1": 302320,
+   "2": 302320
+  },
+  "R_star": null
+ }
+]

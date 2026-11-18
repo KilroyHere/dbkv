@@ -1204,6 +1204,23 @@ The gateway tags each request with its task and signals task end to the engine (
 
 **Adoption:** the §2j-A rule (throughput or p95 ≥ 5% better at 140, nothing worse by > 5%, accuracy ≥ −2 points), and the borderline rule.
 
+*Observed, E seed 0 (job 61505076, 0.40 node-h; single run; `results/p2_E.json`):*
+
+| at 140/min | base (pass-through) | E | change |
+|---|---|---|---|
+| prefill tokens per finished task | 2,578 | 2,381 | **−7.6%** (window total −8.7%) |
+| "evicted proper" share | 23.4% | 16.7% | −29% |
+| re-render share | 15.3% | 19.5% | |
+| throughput | 52.8 / min | 52.2 / min | −1.1% |
+| p95 | 376 s | 377 s | +0.4% |
+| window accuracy | 16.0% | 13.9% | −2.2 points |
+| correct / min | 19.0 | 17.4 | −8% |
+
+- *E tier log: 55,736 blocks evicted from the ENDED tier first, 38,467 from PAUSED, 907 NORMAL; 419 task ends received, `end_unseen` 0, `late_requests` 0.*
+- *Verdicts: plan prediction (≥ 10% fewer prefill) **NOT MET**; E-1 half met (base 23% in range, but not halved); E-2 MET; E-3 NOT MET (accuracy −2.2); E-4 MET.*
+- ***Not adopted*** *(no throughput or p95 gain). Formally borderline (accuracy moved > 1.5 points), so a second run is pending Aryan's call.*
+- *The mechanism works as designed, but at this load fewer evictions do not turn into speed. The GPU is compute-bound, and the saved prefill (~8%) is small next to decode.*
+
 ## 3. Go/no-go tests: decide before building the engine change
 
 *Superseded by D2 on Nov 5. G1–G3 are complete; their outcomes are in the Status table and §11. Kept as written.*
