@@ -1235,6 +1235,7 @@ The gateway tags each request with its task and signals task end to the engine (
 - ***Not adopted*** *(no throughput or p95 gain). Formally borderline (accuracy moved > 1.5 points), so a second run is pending Aryan's call.*
 - *The mechanism works as designed, but at this load fewer evictions do not turn into speed. The GPU is compute-bound, and the saved prefill (~8%) is small next to decode.*
 - *Aryan (Nov 17): run the second run (seed 1), job 61515851, E arm first (order reversed), same cells. Adoption judged on seeds 0 + 1.*
+- *E seed 1 (job 61515851, 0.51 node-h) **timed out at the 30-min debug limit**: the E arm finished (140/min: 71.0/min, p50 202 s, p95 376 s, accuracy 15.3%), but the same-job base arm was cut off, so it cannot be scored. **Aryan (Nov 18): stop E here. E NOT ADOPTED; seed-1 pair incomplete.***
 
 #### 2j-D. Option D: EXPLAIN query scheduling (pre-registered Tue Nov 17 2026, before any D job)
 
@@ -1260,6 +1261,21 @@ The default is the plain 32-thread pool.
 **Adoption:** §2j-A rule and the borderline rule.
 
 *Observed, first D job (61515870, 0.40 node-h): the D arm failed at start (`ModuleNotFoundError: g2_run`). My per-job harness snapshot did not include `calib/`, which D's classifier imports. The base arm ran: DuckDB default on SF100 at 40/min gives p50 94 s, p95 264 s, throughput 20.2/min, and the GPU idle 49% of the time. On this stream the database, not the GPU, is the bottleneck. Fixed: the snapshot now mirrors the repo layout (`harness/gateway`, `harness/w3` incl. `*.json`, `calib`), tested with a mock run of `--db-sched explain`. D is re-run with the same cells (job p2_D_s0b).*
+
+*Observed, D seed 0 (job 61518562, re-run; single paired run; SF100 stream at 40/min):*
+
+| | DuckDB default | D (EXPLAIN scheduling) | change |
+|---|---|---|---|
+| p50 task time | 216 s | **49 s** | **−77%** |
+| p95 | 438 s | 357 s | −18% |
+| throughput | 14.2 / min | **27.0 / min** | **+90%** |
+| unfinished at drain cap | 113 | 51 | |
+| window accuracy | 19.4% | 22.8% | +3.4 points |
+| GPU idle | 41% | 19% | |
+
+- *The default arm varies a lot between runs: the failed job 61515870's default arm gave p50 94 s and 20.2/min. D beats that too.*
+- *Verdicts: **plan prediction (≥ 25% lower p50) MET**; D-1 NOT MET (p50 −77% vs predicted −0 to −20%; better than predicted); D-2 MET and exceeded; D-3 NOT MET (accuracy +3.4 points, outside ±2, in the good direction).*
+- ***Adoption rule met** (throughput +90%, p95 −18%, accuracy up). **Borderline** by the one-run rule (accuracy moved > 1.5 points), so seed 1 is run on regular QOS (`--time 0:45`, because this job used 27.5 of its 30 debug minutes). Adoption is decided on seeds 0 + 1.*
 
 ## 3. Go/no-go tests: decide before building the engine change
 
