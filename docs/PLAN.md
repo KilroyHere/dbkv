@@ -1112,6 +1112,20 @@ P1-c's "evicted is the largest share" is judged on the pre-registered definition
 - *Single-run numbers (no verdict): 60/min suffix vs suffix + C: throughput 46.8 / 46.8, p50 23.5 / 26.8 s, p95 207 / 189 s, window accuracy 24.0 / 25.9%.*
 - *Step 2 submitted under the one-run rule: job `p2_C_s0` = `server:fcfs+suffix open:60 open:40`, `server:fcfs+suffix16 open:60 open:40`, `server:fcfs+suffix8 open:60 open:40`, `server:fcfs+suffix+js open:60 open:40`.*
 
+*Observed, C step 2 (job 61476562, 1.48 node-h; single run, seed 0; every arm on a fresh server, cells 60 then 40):*
+
+| arm | 60/min throughput | p50 / p95 s | accuracy | 40/min throughput | p50 / p95 s | accuracy |
+|---|---|---|---|---|---|---|
+| static K = 24 (default) | 47.4 | 32.4 / 224 | 22.8% | 34.4 | 9.2 / 87 | 27.2% |
+| static K = 16 (best static) | 47.8 | 20.8 / 194 | 23.6% | 34.2 | 9.1 / 82 | 28.9% |
+| static K = 8 | 46.6 | 26.9 / 246 | 22.8% | 35.6 | 9.9 / 61 | 30.0% |
+| **C** (K = 24 + jointspec) | **50.0** | 22.2 / 193 | 24.7% | 35.2 | 8.2 / **53** | 27.2% |
+
+- *C vs best static (K = 16): throughput +4.6% at 60, +2.9% at 40; p95 −0.5% at 60, −36% at 40; p50 +7% at 60, −9% at 40.*
+- ***The plan's prediction (≥ 15% throughput at the ceiling) is NOT MET.***
+- *By the adoption rule, C would join (p95 −36% at 40, nothing worse by > 5%, accuracy within 2 points). But it is **borderline** (accuracy at 40 moved 1.7 points), and the p95 gain rests on one cell's tail.*
+- ***Decision (Aryan, Nov 17): skip the second run to save budget. C is recorded as "single run, borderline, NOT adopted (unconfirmed)".*** *Best system stays stock + suffix (K = 24). C's code stays switchable (`js`) for Phase 3's ablation if budget allows.*
+
 #### 2j-B. Option B: goodput gateway (pre-registered Tue Nov 17 2026, before any B job)
 
 *Do not edit; add observations below. Seen before writing:*
