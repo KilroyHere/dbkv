@@ -7,7 +7,12 @@ A one-read guide to the project (read it right after [AGENTS.md](../AGENTS.md)).
 **Next phase (since Nov 15, PLAN §2j): improving model serving for data agents on one node.** Goal: make the model serving of SQL data agents faster, and measure which mechanism fixes which bottleneck. We start from a setup where serving is clearly the bottleneck (a dense 32B model on one 4-GPU node), add one mechanism at a time, and compare the full system with a naive baseline at the end.
 - **Options, built in this order with no go/no-go gates:** **A** inference stack (gateway admission + priority, suffix decoding, INT8 W8A8 weights, FP8 KV cache) → **C** joint speculation and prefill budget in the vLLM scheduler → **B** goodput gateway → **E** task-aware KV eviction and preemption → **D** EXPLAIN-based query scheduling in front of DuckDB.
 - **Each option** is an on/off switch, has a prediction written into PLAN §2j before its data, and is measured as the added gain on the best system so far (3 repeats, same-job controls). Accuracy is reported only as a check; accuracy work and GPU SQL engines are out of scope.
-- **Answer so far:** none yet for 32B. Everything below (§1 rest, §3, §4) is the 8B / 1-GPU / BIRD record, which motivated the plan: decode dominates task time, the KV limit is predictable, and whole-task admission plus priority prevents the overload collapse.
+- **Answer so far (Phase 2 done, Nov 18; `results/p2_summary.md`):** the final system is stock vLLM + **suffix decoding** + **EXPLAIN query scheduling (D)**.
+  - Suffix decoding roughly halves task time at light and moderate load, and avoids the overload collapse.
+  - D cuts the median task time by 26–77% when DuckDB on SF100 is the bottleneck.
+  - Whole-task admission and goodput forcing raise throughput but not correct answers per minute.
+  - KV-side options (FP8 KV, task-aware eviction) and adaptive speculation (C) give little: the GPU is compute-bound and KV is not full below ~100 tasks/min.
+  - Everything below (§1 rest, §3, §4) is the 8B / 1-GPU / BIRD record.
 
 *The 8B record (Nov 4–9):*
 
@@ -108,10 +113,10 @@ Result: [a2_phase3.md](../results/a2_phase3.md) (no figure).
 
 | Phase | Work | State |
 |---|---|---|
-| 0. Setup | Qwen3-32B download (Aryan approves); `DBKV_MODEL`; full-node Slurm templates; `kv_limit.py` for 32B and K; W3 workload with gold SQL (CPU jobs); agent port, tag `agent-32b-v1`; smoke test (20 tasks, 0 without SQL) | in progress |
-| 1. Baseline | Naive stock vLLM (no gateway, no speculation, BF16) at light (1–4 agents), near-ceiling and overload load; ceiling from a load sweep; instrumentation for all later phases | next |
-| 2. Options | A(a) gateway admission + priority → A(b) suffix decoding → A(c) INT8 W8A8 → A(d) FP8 KV → C → B → E → D; each with a prediction first, 3 repeats, on top of the best system so far | after Phase 1 |
-| 3. Evaluation | Naive vs full at 4–6 loads; ablation; Qwen3-30B-A3B check; negative results | later |
+| 0. Setup | Qwen3-32B, full-node templates, `kv_limit.py` with TP, W3 workload, agent port (`agent-32b-v1`), smoke test | **done** (Nov 15) |
+| 1. Baseline | Naive stock vLLM at light, near-ceiling (40/min) and overload (60/min) load; peak capacity ≈ 55 tasks/min | **done** (Nov 16), `results/p1_baseline.md` |
+| 2. Options | A → C → B → E → D, each as an added gain on the best system so far | **done** (Nov 18): adopted suffix decoding and D; `results/p2_summary.md` |
+| 3. Evaluation | Naive vs full at 4–6 loads; ablation; Qwen3-30B-A3B check; negative results | not started (needs Aryan's go and budget) |
 
 Predictions (not gates): A(a) ≥ 1.5× throughput at overload; A(b) ≥ 1.5× lower p50 at light load; A(c) ≥ 1.3× higher ceiling, accuracy within 2 points; A(d) ≥ 1.2× higher ceiling if KV-limited; C ≥ +15% throughput at the ceiling vs the best static speculation; B ≥ +15% correct tasks/min at overload vs the best static turn limit; E ≥ 10% fewer prefill tokens at overload; D ≥ 25% lower p50 with 32 agents on SF100. Budget: ~22–35 full-node-h in total against 30.8 left (Nov 15); see PLAN §6.
 

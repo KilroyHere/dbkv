@@ -92,11 +92,11 @@ Every row lists its pre-registered prediction (PLAN §2j), the measured added ga
 | Phase 0: W3 workload | — | 133/143 (template, tenant) pairs usable, 783 gold instances, SF100 gold p50 1.8 s | `w3_bank_summary.json`, `w3_streams_summary.json`, `w3_SHA256SUMS` | | 61362847 | Nov 15 |
 | Phase 0: smoke test | 0 of 20 tasks without SQL | **PASS**: 0/20 no-SQL; acc 3/20; task p50 12.7 s at c = 4; LLM 82% / DB 13%; KV pool 305,328 tokens; decode step 17.6 ms (batch 1) / 24 ms (batch 64) | `smoke32_summary.json` | | 61369427 | Nov 15 |
 | Phase 1: naive baseline | P1-a..f (§2j-P1) | peak capacity ≈ 55/min; R\* = 40: p50 21.6 s, p95 150 s; P1-a, e met, b, c, d, f not met; re-render 22–29% of uncached prefill | `p1_baseline.md`, `p1_sweep.json`, `p1_repeats.json` | `fig_p1_load_curve.png` | 61374027/28, 61374963/64, 61395033–35 | Nov 15–16 |
-| A(a) gateway | ≥ 1.5× throughput at overload | not yet | | | | |
-| A(b) suffix decoding | ≥ 1.5× lower p50 at light load | not yet | | | | |
-| A(c) W8A8 | ≥ 1.3× higher ceiling, accuracy ±2 points | not yet | | | | |
-| A(d) FP8 KV | ≥ 1.2× higher ceiling if KV-limited | not yet | | | | |
-| C joint speculation | ≥ +15% throughput at the ceiling vs best static speculation | not yet | | | | |
-| B goodput gateway | ≥ +15% correct tasks/min at overload | not yet | | | | |
-| E task-aware eviction | ≥ 10% fewer prefill tokens at overload | not yet | | | | |
-| D EXPLAIN scheduling | ≥ 25% lower p50, 32 agents, SF100 | not yet | | | | |
+| A(a) gateway | ≥ 1.5× throughput at overload | 1.36× at 140/min, correct/min unchanged; not adopted | `p2_A.json`, `p2_summary.md` | | 61437231–33 | Nov 16 |
+| A(b) suffix decoding | ≥ 1.5× lower p50 at light load | c = 1 p50 0.59–0.63× (MET); adopted after confirmatory test | `p2_A.json`, `p2_Ab_stock.json` | | 61437234–36, 61450892–94, 61474478/79 | Nov 16–17 |
+| A(c) W8A8 | ≥ 1.3× higher ceiling, accuracy ±2 points | skipped (no checkpoint) | | | | |
+| A(d) FP8 KV | ≥ 1.2× higher ceiling if KV-limited | not runnable with suffix (vLLM 0.33 / A100) | PLAN §2j-A | | 61437237/38 | Nov 16 |
+| C joint speculation | ≥ +15% throughput at the ceiling vs best static speculation | +4.6% vs best static K (NOT MET); not adopted | `p2_C.json` | | 61475671, 61476562 | Nov 17 |
+| B goodput gateway | ≥ +15% correct tasks/min at overload | 0.94× turn limit, −10.6% vs base (NOT MET); not adopted | `p2_B.json` | | 61476626, 61490048 | Nov 17 |
+| E task-aware eviction | ≥ 10% fewer prefill tokens at overload | −7.6% (NOT MET); not adopted | `p2_E.json` | | 61505076, 61515851 | Nov 17 |
+| D EXPLAIN scheduling | ≥ 25% lower p50, 32 agents, SF100 | p50 −63% (2 seeds), throughput +33% (MET); adopted | `p2_D.json`, `p2_summary.md` | | 61518562, 61525113 | Nov 18 |
